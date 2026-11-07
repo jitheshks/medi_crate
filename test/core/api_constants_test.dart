@@ -11,9 +11,12 @@ void main() {
       expect(ApiConstants.syncPullBatchLimit, equals(200));
     });
 
-    test('apiKey getter returns empty string safely when dotenv is uninitialized', () {
-      // In tests where dotenv.load() hasn't run, apiKey should return '' safely without throwing
-      expect(ApiConstants.apiKey, equals(''));
-    });
+    test(
+      'apiKey getter returns empty string safely when dotenv is uninitialized',
+      () {
+        // In tests where dotenv.load() hasn't run, apiKey should return '' safely without throwing
+        expect(ApiConstants.apiKey, equals(''));
+      },
+    );
   });
 }

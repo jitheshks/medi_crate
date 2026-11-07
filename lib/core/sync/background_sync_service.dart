@@ -25,6 +25,9 @@ void callbackDispatcher() {
 
 /// BackgroundSyncService orchestrates headless background synchronization using WorkManager.
 class BackgroundSyncService {
+  static const String legacyOneOffSyncTaskId = 'com.medivalut.sync.oneoff';
+  static const String legacyPeriodicSyncTaskId = 'com.medivalut.sync.periodic';
+
   static const String oneOffSyncTaskId = 'com.medicrate.sync.oneoff';
   static const String oneOffSyncTaskName = 'mediCrateOneOffSync';
 
@@ -46,6 +49,12 @@ class BackgroundSyncService {
         final wm = customWorkmanager ?? Workmanager();
         await wm.initialize(callbackDispatcher);
         _isInitialized = true;
+
+        // Cancel legacy MediVault background tasks to prevent duplicate workers
+        try {
+          await wm.cancelByUniqueName(legacyPeriodicSyncTaskId);
+          await wm.cancelByUniqueName(legacyOneOffSyncTaskId);
+        } catch (_) {}
 
         // Register periodic background sync safety net (every 15 minutes on Android)
         await wm.registerPeriodicTask(

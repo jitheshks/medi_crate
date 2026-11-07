@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/providers/mutable_state_notifier.dart';
+
 import 'package:intl/intl.dart';
 
 import '../../../../core/utils/id_utils.dart';
@@ -45,12 +47,10 @@ final reportSearchQueryProvider = mutableStateProvider<String>('');
 final reportFilterCategoryProvider = mutableStateProvider<String>('ALL');
 
 /// Date range filter provider for reports.
-final reportDateRangeProvider =
-    mutableStateProvider<DateRangeSelection?>(null);
+final reportDateRangeProvider = mutableStateProvider<DateRangeSelection?>(null);
 
 /// Sort option provider (e.g., 'NEWEST_FIRST', 'OLDEST_FIRST', 'A_TO_Z', 'Z_TO_A').
-final reportSortOptionProvider =
-    mutableStateProvider<String>('NEWEST_FIRST');
+final reportSortOptionProvider = mutableStateProvider<String>('NEWEST_FIRST');
 
 /// AsyncNotifier managing the medical reports list for active profile with offline-first synchronization.
 class ReportsListNotifier extends AsyncNotifier<List<ReportModel>> {

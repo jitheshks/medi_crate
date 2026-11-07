@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/providers/mutable_state_notifier.dart';
 
 import '../../../../core/exceptions/app_exception.dart';
@@ -18,14 +19,13 @@ final analyticsRepositoryProvider = Provider<AnalyticsRepository>((ref) {
 });
 
 /// State provider for selected time range filter (7 Days, 30 Days, 3 Months, 1 Year, All Time, Custom).
-final selectedTimeRangeProvider =
-    mutableStateProvider<InsightsTimeRange>(InsightsTimeRange.threeMonths);
+final selectedTimeRangeProvider = mutableStateProvider<InsightsTimeRange>(
+  InsightsTimeRange.threeMonths,
+);
 
 /// Custom date range providers for Insights.
-final insightsCustomStartDateProvider =
-    mutableStateProvider<DateTime?>(null);
-final insightsCustomEndDateProvider =
-    mutableStateProvider<DateTime?>(null);
+final insightsCustomStartDateProvider = mutableStateProvider<DateTime?>(null);
+final insightsCustomEndDateProvider = mutableStateProvider<DateTime?>(null);
 
 /// AsyncNotifier managing profile-scoped insights summary state.
 class InsightsNotifier extends AsyncNotifier<InsightsSummaryModel> {

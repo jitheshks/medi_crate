@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/providers/mutable_state_notifier.dart';
+
 import 'package:medi_crate/core/utils/id_utils.dart';
 import 'package:medi_crate/features/appointments/data/models/appointment_model.dart';
 import 'package:medi_crate/features/appointments/presentation/providers/appointment_providers.dart';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
+
 import '../../../../core/providers/mutable_state_notifier.dart';
 
 import '../../../../core/exceptions/app_exception.dart';
@@ -16,19 +17,14 @@ import '../../../settings/presentation/providers/settings_providers.dart';
 // Form state providers for New/Edit Consultation
 final selectedDoctorProvider = mutableStateProvider<String?>(null);
 final selectedDoctorIdProvider = mutableStateProvider<String?>(null);
-final selectedDoctorSpecialtyProvider =
-    mutableStateProvider<String?>(null);
+final selectedDoctorSpecialtyProvider = mutableStateProvider<String?>(null);
 final selectedHospitalProvider = mutableStateProvider<String?>(null);
 final selectedHospitalIdProvider = mutableStateProvider<String?>(null);
 final selectedDepartmentProvider = mutableStateProvider<String?>(null);
-final selectedDepartmentIdProvider =
-    mutableStateProvider<String?>(null);
-final selectedAppointmentIdProvider =
-    mutableStateProvider<String?>(null);
-final visitDateProvider =
-    mutableStateProvider<DateTime>(DateTime.now());
-final visitTimeProvider =
-    mutableStateProvider<TimeOfDay>(TimeOfDay.now());
+final selectedDepartmentIdProvider = mutableStateProvider<String?>(null);
+final selectedAppointmentIdProvider = mutableStateProvider<String?>(null);
+final visitDateProvider = mutableStateProvider<DateTime>(DateTime.now());
+final visitTimeProvider = mutableStateProvider<TimeOfDay>(TimeOfDay.now());
 final isFollowUpEnabledProvider = mutableStateProvider<bool>(false);
 final followUpDateProvider = mutableStateProvider<DateTime?>(null);
 final followUpTimeProvider = mutableStateProvider<TimeOfDay?>(null);

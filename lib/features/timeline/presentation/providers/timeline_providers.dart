@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/providers/mutable_state_notifier.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
@@ -22,10 +23,8 @@ final timelineFilterProvider = mutableStateProvider<String>('ALL');
 final timelineDateRangeProvider = mutableStateProvider<String>('last90Days');
 
 /// Custom date range providers for Timeline.
-final timelineCustomStartDateProvider =
-    mutableStateProvider<DateTime?>(null);
-final timelineCustomEndDateProvider =
-    mutableStateProvider<DateTime?>(null);
+final timelineCustomStartDateProvider = mutableStateProvider<DateTime?>(null);
+final timelineCustomEndDateProvider = mutableStateProvider<DateTime?>(null);
 
 /// Sort order provider ('newest', 'oldest').
 final timelineSortProvider = mutableStateProvider<String>('newest');

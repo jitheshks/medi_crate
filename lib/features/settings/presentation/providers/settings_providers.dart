@@ -55,9 +55,9 @@ class SettingsController extends Notifier<SettingsModel> {
     SettingsRepository? repository,
     AnalyticsService? analyticsService,
     NotificationService? notificationService,
-  })  : _customRepository = repository,
-        _customAnalyticsService = analyticsService,
-        _customNotificationService = notificationService;
+  }) : _customRepository = repository,
+       _customAnalyticsService = analyticsService,
+       _customNotificationService = notificationService;
 
   SettingsRepository get _repository =>
       _customRepository ?? ref.read(settingsRepositoryProvider);

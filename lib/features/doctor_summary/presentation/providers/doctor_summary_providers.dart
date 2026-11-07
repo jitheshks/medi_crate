@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/providers/mutable_state_notifier.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
@@ -50,13 +51,14 @@ final doctorSummaryRepositoryProvider = Provider<DoctorSummaryRepository>((
   return DoctorSummaryRepository(hiveService: hive);
 });
 
-final doctorSummaryModeProvider =
-    mutableStateProvider<DoctorSummaryMode>(DoctorSummaryMode.dateRange);
+final doctorSummaryModeProvider = mutableStateProvider<DoctorSummaryMode>(
+  DoctorSummaryMode.dateRange,
+);
 
 final doctorSummaryDatePresetProvider =
     mutableStateProvider<DoctorSummaryDatePreset>(
-  DoctorSummaryDatePreset.allTime,
-);
+      DoctorSummaryDatePreset.allTime,
+    );
 
 final doctorSummaryCustomDateRangeProvider =
     mutableStateProvider<DateTimeRange?>(null);

@@ -75,12 +75,12 @@ Widget _buildRouterErrorScreen(
 ) {
   developer.log(
     '❌ [ROUTER ERROR] Navigation failed for path: ${state.uri.path} | Error: ${state.error}',
-    name: 'MediVault.Router',
+    name: 'MediCrate.Router',
   );
 
   return Scaffold(
     appBar: AppBar(
-      title: const Text('MediVault'),
+      title: const Text('MediCrate'),
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
         onPressed: () {

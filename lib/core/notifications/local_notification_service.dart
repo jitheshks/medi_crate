@@ -127,7 +127,7 @@ class LocalNotificationService {
     final tzTarget = tz.TZDateTime.from(targetTime, tz.local);
 
     const androidDetails = AndroidNotificationDetails(
-      'medivalut_appointments',
+      'medicrate_appointments',
       'Appointment Reminders',
       channelDescription:
           'Notifications for upcoming doctor and clinic appointments',
@@ -195,7 +195,7 @@ class LocalNotificationService {
     }
 
     const androidDetails = AndroidNotificationDetails(
-      'medivalut_medicines',
+      'medicrate_medicines',
       'Medicine Reminders',
       channelDescription: 'Daily dose reminders for your active medications',
       importance: Importance.max,

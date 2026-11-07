@@ -18,7 +18,7 @@ abstract class ApiErrorParser {
 
       case DioExceptionType.badCertificate:
         return const NetworkException(
-          "We couldn't establish a secure connection to MediVault. Please try again later.",
+          "We couldn't establish a secure connection to MediCrate. Please try again later.",
           code: 'BAD_CERTIFICATE',
         );
 
@@ -26,7 +26,7 @@ abstract class ApiErrorParser {
         final response = error.response;
         if (response == null) {
           return const ServerException(
-            'MediVault is temporarily unavailable. Please try again later.',
+            'MediCrate is temporarily unavailable. Please try again later.',
           );
         }
         return parseResponse(response.statusCode ?? 500, response.data);
@@ -56,7 +56,7 @@ abstract class ApiErrorParser {
               errorStr.contains('ssl') ||
               errorStr.contains('tls')) {
             return const NetworkException(
-              "We couldn't establish a secure connection to MediVault. Please try again later.",
+              "We couldn't establish a secure connection to MediCrate. Please try again later.",
               code: 'SECURE_CONNECTION_ERROR',
             );
           }
@@ -85,7 +85,7 @@ abstract class ApiErrorParser {
                 osMsg.contains('connection refused') ||
                 osCode == 111) {
               return const ServerException(
-                'MediVault is temporarily unavailable. Please try again later.',
+                'MediCrate is temporarily unavailable. Please try again later.',
                 code: 'CONNECTION_REFUSED',
               );
             }
@@ -94,7 +94,7 @@ abstract class ApiErrorParser {
                 osMsg.contains('permission denied') ||
                 osCode == 13) {
               return const NetworkException(
-                "Couldn't connect to MediVault. Please check your internet connection and try again.",
+                "Couldn't connect to MediCrate. Please check your internet connection and try again.",
                 code: 'PERMISSION_DENIED',
               );
             }
@@ -127,7 +127,7 @@ abstract class ApiErrorParser {
                   errorStr.contains('connection reset') ||
                   errorStr.contains('connection terminated'))) {
             return const ServerException(
-              'MediVault is temporarily unavailable. Please try again later.',
+              'MediCrate is temporarily unavailable. Please try again later.',
               code: 'CONNECTION_CLOSED',
             );
           }
@@ -147,7 +147,7 @@ abstract class ApiErrorParser {
           }
           if (msgLower.contains('connection refused')) {
             return const ServerException(
-              'MediVault is temporarily unavailable. Please try again later.',
+              'MediCrate is temporarily unavailable. Please try again later.',
               code: 'CONNECTION_REFUSED',
             );
           }
@@ -156,7 +156,7 @@ abstract class ApiErrorParser {
               msgLower.contains('ssl') ||
               msgLower.contains('tls')) {
             return const NetworkException(
-              "We couldn't establish a secure connection to MediVault. Please try again later.",
+              "We couldn't establish a secure connection to MediCrate. Please try again later.",
               code: 'SECURE_CONNECTION_ERROR',
             );
           }
@@ -169,7 +169,7 @@ abstract class ApiErrorParser {
 
         // Generic fallback connection failure
         return const NetworkException(
-          "Couldn't connect to MediVault. Please check your internet connection and try again.",
+          "Couldn't connect to MediCrate. Please check your internet connection and try again.",
         );
     }
   }
@@ -295,7 +295,7 @@ abstract class ApiErrorParser {
         return ServerException(
           message.isNotEmpty
               ? message
-              : 'MediVault is temporarily unavailable. Please try again later.',
+              : 'MediCrate is temporarily unavailable. Please try again later.',
           statusCode: statusCode,
           errors: validationErrors,
         );

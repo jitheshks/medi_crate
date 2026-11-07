@@ -19,7 +19,7 @@ void main() async {
     // These initializers have no cross-dependencies; run them concurrently.
     // Hive is fully opened here so startup providers can read boxes immediately.
     await Future.wait([
-      dotenv.load(fileName: '.env'),
+      dotenv.load(fileName: '.env').catchError((_) {}),
       SslSecurityContext.initialize(),
       HiveService.init(),
       Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
@@ -57,9 +57,9 @@ class _StartupErrorApp extends StatelessWidget {
       home: Scaffold(
         body: SafeArea(
           child: AppErrorState(
-            title: 'Unable to Start MediVault',
+            title: 'Unable to Start MediCrate',
             message:
-                'MediVault could not finish starting up. Please close the app '
+                'MediCrate could not finish starting up. Please close the app '
                 'completely and open it again.',
             error: error,
           ),

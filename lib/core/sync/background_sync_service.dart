@@ -24,10 +24,10 @@ void callbackDispatcher() {
 
 /// BackgroundSyncService orchestrates headless background synchronization using WorkManager.
 class BackgroundSyncService {
-  static const String oneOffSyncTaskId = 'com.medivalut.sync.oneoff';
+  static const String oneOffSyncTaskId = 'com.medicrate.sync.oneoff';
   static const String oneOffSyncTaskName = 'mediCrateOneOffSync';
 
-  static const String periodicSyncTaskId = 'com.medivalut.sync.periodic';
+  static const String periodicSyncTaskId = 'com.medicrate.sync.periodic';
   static const String periodicSyncTaskName = 'mediCratePeriodicSync';
 
   static bool _isInitialized = false;

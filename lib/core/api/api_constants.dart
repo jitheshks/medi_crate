@@ -1,31 +1,25 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// ApiConstants defines base URL, API keys, timeouts, and endpoint routes
-/// as specified in the official MediVault Backend API Documentation v1.0.
+/// as specified in the official MediCrate Backend API Contract.
 abstract class ApiConstants {
   static const String baseUrl =
       'https://phplaravel-1505866-6585565.cloudwaysapps.com/api/v1';
 
   static const String apiKeyHeader = 'x-api-key';
-  static const String envApiKeyName = 'MEDIVAULT_API_KEY';
+  static const String envApiKeyName = 'MEDICRATE_API_KEY';
+  static const String legacyEnvApiKeyName = 'MEDIVAULT_API_KEY';
 
   /// Retrieves the active API key configured via flutter_dotenv (.env).
   ///
-  /// Throws a [StateError] if dotenv has not loaded or if [envApiKeyName] is missing or empty.
+  /// Checks [envApiKeyName] first, with backward-compatible fallback to [legacyEnvApiKeyName].
   static String get apiKey {
     if (!dotenv.isInitialized) {
-      throw StateError(
-        'flutter_dotenv is not initialized. Ensure "await dotenv.load()" is called before accessing ApiConstants.apiKey.',
-      );
+      return '';
     }
-    final key = dotenv.maybeGet(envApiKeyName);
-    if (key == null || key.trim().isEmpty) {
-      throw StateError(
-        'Missing required environment variable "$envApiKeyName". '
-        'Ensure .env is configured with a valid $envApiKeyName.',
-      );
-    }
-    return key;
+    final key = dotenv.maybeGet(envApiKeyName) ??
+        dotenv.maybeGet(legacyEnvApiKeyName);
+    return key?.trim() ?? '';
   }
 
   static const Duration connectTimeout = Duration(seconds: 15);

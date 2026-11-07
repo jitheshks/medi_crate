@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../appointments/data/models/appointment_model.dart';
 import '../../../appointments/presentation/providers/appointment_providers.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+
 import 'package:medi_crate/core/utils/id_utils.dart';
+
 import '../../../expenses/presentation/providers/expense_providers.dart';
 import '../../../home/presentation/providers/clinical_sync_coordinator.dart';
 import '../../../home/presentation/providers/home_providers.dart';

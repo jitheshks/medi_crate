@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_radius.dart';
 
 /// DetailInfoCard renders a structured white card containing information rows or custom children.

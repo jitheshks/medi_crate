@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import '../../../../core/api/list_pull_support.dart';
 import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/storage/hive_profile_query_helper.dart';

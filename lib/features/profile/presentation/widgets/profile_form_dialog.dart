@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
 import '../../../../shared/utils/form_submit_runner.dart';
@@ -241,9 +242,9 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
                               child: Text(
                                 rel,
                                 style: AppTypography.bodyMedium.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface,
                                 ),
                               ),
                             );

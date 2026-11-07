@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
@@ -12,8 +13,7 @@ class VitalsEmptyState extends StatelessWidget {
     return AppEmptyState(
       icon: AppIcons.activity,
       title: 'No measurements yet',
-      message:
-          'Start tracking your health measurements to keep your health record up to date.',
+      message: 'Start tracking your health measurements to keep your health record up to date.',
       actionLabel: 'Add Measurement',
       actionIcon: Icons.add,
       onAction: () => context.pushGuarded(AppRoutes.addMeasurement),

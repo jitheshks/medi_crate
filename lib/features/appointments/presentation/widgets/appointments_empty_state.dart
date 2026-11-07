@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
@@ -28,8 +29,7 @@ class AppointmentsEmptyState extends StatelessWidget {
     return AppEmptyState(
       icon: AppIcons.calendar,
       title: 'No Appointments Scheduled',
-      message:
-          'Schedule doctor consultations and reviews with reminders to keep your health on track.',
+      message: 'Schedule doctor consultations and reviews with reminders to keep your health on track.',
       actionLabel: 'Schedule Appointment',
       actionIcon: Icons.add,
       onAction: () => context.pushGuarded(AppRoutes.newAppointment),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
@@ -176,8 +177,8 @@ class DoctorProfileAppointmentsSection extends ConsumerWidget {
               .map(
                 (a) => DetailLinkedAppointmentCard(
                   appointment: a,
-                  contextLabel: (a.hospitalName != null &&
-                          a.hospitalName!.isNotEmpty)
+                  contextLabel:
+                      (a.hospitalName != null && a.hospitalName!.isNotEmpty)
                       ? a.hospitalName
                       : null,
                 ),

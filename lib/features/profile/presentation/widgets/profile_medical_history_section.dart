@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'profile_allergies_section.dart';
 import 'profile_chronic_conditions_section.dart';
 

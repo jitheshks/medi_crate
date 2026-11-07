@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+
 import '../../features/appointments/presentation/screens/add_edit_appointment_screen.dart';
 import '../../features/appointments/presentation/screens/appointment_detail_screen.dart';
 import '../../features/appointments/presentation/screens/appointments_list_screen.dart';

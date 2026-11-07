@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../theme/app_semantic_colors.dart';
 
 extension BuildContextSnackBarX on BuildContext {

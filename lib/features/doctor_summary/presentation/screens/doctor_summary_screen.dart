@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -198,8 +199,7 @@ class DoctorSummaryScreen extends ConsumerWidget {
             return const Center(child: Text('No active profile selected.'));
           }
 
-          final combinedSummary =
-              combinedSummaryAsync.value ?? baseSummary;
+          final combinedSummary = combinedSummaryAsync.value ?? baseSummary;
           final customizedSummary =
               customizedSummaryAsync.value ?? combinedSummary;
           final p = baseSummary.profile;

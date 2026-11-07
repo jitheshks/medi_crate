@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_radius.dart';
 
 /// DetailChipList renders a wrap layout of rounded metadata chips.

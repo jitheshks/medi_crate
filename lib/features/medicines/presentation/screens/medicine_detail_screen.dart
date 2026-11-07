@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/exceptions/app_exception.dart';
@@ -48,8 +49,7 @@ class MedicineDetailScreen extends ConsumerWidget {
       title: 'Delete this medicine?',
       recordName: medicine.medicineName,
       recordType: 'Medicine',
-      reassuranceMessage:
-          'This will remove the medicine record only.\nThe linked consultation will remain unchanged.',
+      reassuranceMessage: 'This will remove the medicine record only.\nThe linked consultation will remain unchanged.',
       onConfirm: () {},
     );
 
@@ -98,8 +98,7 @@ class MedicineDetailScreen extends ConsumerWidget {
           error: (err, stack) => AppErrorState(
             error: err,
             title: 'Unable to Load Medicine',
-            onRetry: () =>
-                ref.invalidate(medicineDetailProvider(medicineId)),
+            onRetry: () => ref.invalidate(medicineDetailProvider(medicineId)),
           ),
           data: (medicine) {
             if (medicine == null) {

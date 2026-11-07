@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_radius.dart';
 
 /// DetailStatusPill renders a standardized rounded status badge with a tinted background.

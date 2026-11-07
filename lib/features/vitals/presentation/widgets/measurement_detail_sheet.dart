@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
@@ -58,9 +59,8 @@ void showMeasurementDetailSheet(
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        DateFormat(
-                          'EEEE, d MMMM yyyy · HH:mm',
-                        ).format(item.recordedAt),
+                        DateFormat('EEEE, d MMMM yyyy · HH:mm')
+                            .format(item.recordedAt),
                         style: AppTypography.caption.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),

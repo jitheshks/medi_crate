@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/constants/app_radius.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -219,8 +220,7 @@ class _GlobalSearchSheetState extends ConsumerState<GlobalSearchSheet> {
     return const AppEmptyState(
       icon: AppIcons.search,
       title: 'Search Your Health Records',
-      message:
-          'Instant search across doctors, hospitals, consultations, medicines, reports, appointments, and vitals.',
+      message: 'Instant search across doctors, hospitals, consultations, medicines, reports, appointments, and vitals.',
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_typography.dart';
 
 /// OtpResendSection renders the timer countdown or interactive Resend Code link.

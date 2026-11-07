@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../../core/constants/app_icons.dart';
 import '../../../../../core/constants/app_radius.dart';
 import '../../../../../core/constants/app_typography.dart';
@@ -161,9 +162,8 @@ class ConsultationFollowUpSection extends ConsumerWidget {
                                         Flexible(
                                           child: Text(
                                             followUpDate != null
-                                                ? DateFormat(
-                                                    'dd / MM / yyyy',
-                                                  ).format(followUpDate)
+                                                ? DateFormat('dd / MM / yyyy')
+                                                      .format(followUpDate)
                                                 : 'Select Date',
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,

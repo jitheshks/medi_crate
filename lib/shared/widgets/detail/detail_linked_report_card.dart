@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
 import '../../../features/reports/data/models/report_model.dart';
@@ -36,10 +37,8 @@ class DetailLinkedReportCard extends StatelessWidget {
         ),
         child: Icon(icon, color: color, size: 20),
       ),
-      onTap: onTap ??
-          () => context.pushGuarded(
-                AppRoutes.reportDetail(report.id),
-              ),
+      onTap:
+          onTap ?? () => context.pushGuarded(AppRoutes.reportDetail(report.id)),
     );
   }
 }

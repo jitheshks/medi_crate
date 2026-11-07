@@ -63,10 +63,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '147675311808',
     projectId: 'medivault-428b2',
     storageBucket: 'medivault-428b2.firebasestorage.app',
-    androidClientId:
-        '147675311808-apbgep3l7jgo9if3oqu2c9d4kj95pf1d.apps.googleusercontent.com',
-    iosClientId:
-        '147675311808-f5tsjq73msbh5j2u4suv48hoc6b0utlr.apps.googleusercontent.com',
+    androidClientId: '147675311808-apbgep3l7jgo9if3oqu2c9d4kj95pf1d.apps.googleusercontent.com',
+    iosClientId: '147675311808-f5tsjq73msbh5j2u4suv48hoc6b0utlr.apps.googleusercontent.com',
     iosBundleId: 'com.reubro.medivault',
   );
   static const FirebaseOptions macos = FirebaseOptions(
@@ -75,10 +73,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '147675311808',
     projectId: 'medivault-428b2',
     storageBucket: 'medivault-428b2.firebasestorage.app',
-    androidClientId:
-        '147675311808-apbgep3l7jgo9if3oqu2c9d4kj95pf1d.apps.googleusercontent.com',
-    iosClientId:
-        '147675311808-bdadjnbllqd2m3l78inaapm7100g6v63.apps.googleusercontent.com',
+    androidClientId: '147675311808-apbgep3l7jgo9if3oqu2c9d4kj95pf1d.apps.googleusercontent.com',
+    iosClientId: '147675311808-bdadjnbllqd2m3l78inaapm7100g6v63.apps.googleusercontent.com',
     iosBundleId: 'com.example.medivalut',
   );
 

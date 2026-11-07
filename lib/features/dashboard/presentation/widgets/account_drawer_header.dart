@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/constants/app_radius.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -24,9 +25,8 @@ class AccountDrawerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final formattedDate = DateFormat(
-      'EEEE, MMM d, yyyy',
-    ).format(DateTime.now());
+    final formattedDate = DateFormat('EEEE, MMM d, yyyy')
+        .format(DateTime.now());
 
     return Container(
       padding: const EdgeInsets.all(20),

@@ -1,6 +1,7 @@
 import 'package:currency_picker/currency_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/constants/app_currency.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/extensions/build_context_extensions.dart';

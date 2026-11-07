@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_radius.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../shared/widgets/forms/app_search_field.dart';
@@ -166,9 +167,9 @@ class _ConsultationPickerSheetState extends State<ConsultationPickerSheet> {
                               )
                             : Icon(
                                 Icons.circle_outlined,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                                 size: 20,
                               ),
                         onTap: () {

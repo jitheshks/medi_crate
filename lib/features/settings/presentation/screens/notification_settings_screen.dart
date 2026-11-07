@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/constants/app_typography.dart';
 import '../providers/settings_providers.dart';
 import '../widgets/settings_group_card.dart';

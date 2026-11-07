@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+
 import '../../../../core/exceptions/app_exception.dart';
 import '../../data/datasources/remote/auth_remote_data_source.dart';
 import '../../data/models/user_model.dart';

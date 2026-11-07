@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/utils/date_formatter.dart';
@@ -48,56 +49,59 @@ class DoctorSummaryDateFilterCard extends StatelessWidget {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            children: const [
-              DoctorSummaryDatePreset.allTime,
-              DoctorSummaryDatePreset.last7Days,
-              DoctorSummaryDatePreset.last30Days,
-              DoctorSummaryDatePreset.last3Months,
-              DoctorSummaryDatePreset.last1Year,
-              DoctorSummaryDatePreset.custom,
-            ].map((preset) {
-              final isSelected = selectedPreset == preset;
-              final label = preset == DoctorSummaryDatePreset.custom &&
-                      customDateRange != null
-                  ? DateFormatter.formatDateRange(
-                      customDateRange!.start,
-                      customDateRange!.end,
-                    )
-                  : preset.label;
+            children:
+                const [
+                  DoctorSummaryDatePreset.allTime,
+                  DoctorSummaryDatePreset.last7Days,
+                  DoctorSummaryDatePreset.last30Days,
+                  DoctorSummaryDatePreset.last3Months,
+                  DoctorSummaryDatePreset.last1Year,
+                  DoctorSummaryDatePreset.custom,
+                ].map((preset) {
+                  final isSelected = selectedPreset == preset;
+                  final label =
+                      preset == DoctorSummaryDatePreset.custom &&
+                          customDateRange != null
+                      ? DateFormatter.formatDateRange(
+                          customDateRange!.start,
+                          customDateRange!.end,
+                        )
+                      : preset.label;
 
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(label),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    if (preset == DoctorSummaryDatePreset.custom) {
-                      onPickCustomRange();
-                    } else {
-                      onPresetSelected(preset);
-                    }
-                  },
-                  selectedColor: colorScheme.primary,
-                  labelStyle: AppTypography.caption.copyWith(
-                    color: isSelected
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSurface,
-                    fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                  backgroundColor: colorScheme.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(
-                      color: isSelected
-                          ? colorScheme.primary
-                          : colorScheme.outline.withValues(alpha: 0.5),
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(label),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        if (preset == DoctorSummaryDatePreset.custom) {
+                          onPickCustomRange();
+                        } else {
+                          onPresetSelected(preset);
+                        }
+                      },
+                      selectedColor: colorScheme.primary,
+                      labelStyle: AppTypography.caption.copyWith(
+                        color: isSelected
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                      backgroundColor: colorScheme.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outline.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      showCheckmark: false,
                     ),
-                  ),
-                  showCheckmark: false,
-                ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
           ),
         ),
       ],

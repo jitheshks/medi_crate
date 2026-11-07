@@ -26,8 +26,7 @@ class DoctorSyncHandler {
     return <String, dynamic>{
       'profile_id': resolvedProfileId,
       'name': raw['name'] ?? '',
-      if (raw['specialty'] != null &&
-          raw['specialty'].toString().isNotEmpty)
+      if (raw['specialty'] != null && raw['specialty'].toString().isNotEmpty)
         'specialty': raw['specialty'],
       if (raw['phone'] != null && raw['phone'].toString().isNotEmpty)
         'phone': raw['phone'],
@@ -36,8 +35,7 @@ class DoctorSyncHandler {
       if (raw['hospital_name'] != null &&
           raw['hospital_name'].toString().isNotEmpty)
         'hospital_name': raw['hospital_name'],
-      if (raw['client_uuid'] != null)
-        'client_uuid': raw['client_uuid'],
+      if (raw['client_uuid'] != null) 'client_uuid': raw['client_uuid'],
     };
   }
 
@@ -67,7 +65,11 @@ class DoctorSyncHandler {
             ? serverIntId
             : (resolveDeleteServerId != null
                   ? resolveDeleteServerId('doctor_', payload)
-                  : _resolveDeleteServerIdFallback('doctor_', payload, userBox));
+                  : _resolveDeleteServerIdFallback(
+                      'doctor_',
+                      payload,
+                      userBox,
+                    ));
         if (serverId != null) {
           await remoteDataSource.deleteDoctor(serverId.toString());
         } else if (payload['_needs_server_id'] == true) {
@@ -105,7 +107,10 @@ class DoctorSyncHandler {
       // 4. Dispatch API call (D4 update or D2 add)
       Map<String, dynamic> res;
       if (operation == 'update' && isServerNumericId) {
-        res = await remoteDataSource.updateDoctor(serverIntId.toString(), apiPayload);
+        res = await remoteDataSource.updateDoctor(
+          serverIntId.toString(),
+          apiPayload,
+        );
       } else {
         res = await remoteDataSource.addDoctor(apiPayload);
       }

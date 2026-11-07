@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
@@ -29,11 +30,11 @@ class DetailLinkedAppointmentCard extends StatelessWidget {
     if (subtitle != null) {
       effectiveSubtitle = subtitle!;
     } else {
-      final dateStr = DateFormat('dd MMM yyyy, hh:mm a').format(appointment.date);
-      final contextPart =
-          (contextLabel != null && contextLabel!.isNotEmpty)
-              ? ' · $contextLabel'
-              : '';
+      final dateStr = DateFormat('dd MMM yyyy, hh:mm a')
+          .format(appointment.date);
+      final contextPart = (contextLabel != null && contextLabel!.isNotEmpty)
+          ? ' · $contextLabel'
+          : '';
       effectiveSubtitle =
           '$dateStr$contextPart · ${appointment.status.toUpperCase()}';
     }
@@ -53,10 +54,10 @@ class DetailLinkedAppointmentCard extends StatelessWidget {
           size: 20,
         ),
       ),
-      onTap: onTap ??
-          () => context.pushGuarded(
-                AppRoutes.appointmentDetail(appointment.id),
-              ),
+      onTap:
+          onTap ??
+          () =>
+              context.pushGuarded(AppRoutes.appointmentDetail(appointment.id)),
     );
   }
 }

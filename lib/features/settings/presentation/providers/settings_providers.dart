@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+
 import '../../../../core/analytics/analytics_service.dart';
 import '../../../../core/export/export_service.dart';
 import '../../../../core/notifications/notification_service.dart';
@@ -100,8 +101,8 @@ final storageUsageProvider = FutureProvider<Map<String, int>>((ref) async {
   return await repo.getStorageBreakdown();
 });
 
-final appPackageInfoProvider =
-    FutureProvider.autoDispose<PackageInfo>((ref) async {
-      return await PackageInfo.fromPlatform();
-    });
-
+final appPackageInfoProvider = FutureProvider.autoDispose<PackageInfo>((
+  ref,
+) async {
+  return await PackageInfo.fromPlatform();
+});

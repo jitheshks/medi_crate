@@ -1,8 +1,10 @@
 import 'dart:isolate';
+
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+
 import '../../features/doctor_summary/data/export/doctor_summary_pdf_builder.dart';
 import '../storage/hive_service.dart';
 import '../utils/date_formatter.dart';
@@ -78,8 +80,7 @@ class ExportService {
             ),
             pw.SizedBox(height: 8),
             pw.Paragraph(
-              text:
-                  'This document contains self-reported and locally stored personal health records generated directly from MediCrate. All records are confidential and stored client-side.',
+              text: 'This document contains self-reported and locally stored personal health records generated directly from MediCrate. All records are confidential and stored client-side.',
             ),
             pw.SizedBox(height: 12),
             pw.TableHelper.fromTextArray(
@@ -126,4 +127,3 @@ class ExportService {
     );
   }
 }
-

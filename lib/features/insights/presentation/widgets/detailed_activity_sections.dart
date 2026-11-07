@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../data/models/insights_summary_model.dart';
 import 'activity/appointments_activity_card.dart';

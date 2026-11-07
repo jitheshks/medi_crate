@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'detail_section_header.dart';
 
 /// DetailSection renders a section header followed by its content child.

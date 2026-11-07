@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../home/presentation/providers/clinical_sync_coordinator.dart';
 import '../../../home/presentation/providers/home_providers.dart';
@@ -7,7 +9,9 @@ import '../../../insights/presentation/providers/insights_providers.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';
 import '../../../timeline/presentation/providers/timeline_providers.dart';
 import '../../../../core/notifications/local_notification_service.dart';
+
 import 'package:flutter/material.dart';
+
 import '../../data/datasources/remote/medicine_remote_data_source.dart';
 import '../../data/models/medicine_model.dart';
 import '../../data/repositories/medicine_repository.dart';

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_typography.dart';
 import '../../../core/exceptions/app_exception.dart';
@@ -61,9 +62,7 @@ class AppErrorState extends StatelessWidget {
     if (isFeatureUnavailable) {
       icon = Icons.construction_outlined;
       displayTitle = title ?? 'Feature Coming Soon';
-      displayMessage =
-          message ??
-          'This module is currently being integrated and will be available in an upcoming update.';
+      displayMessage = message ?? 'This module is currently being integrated and will be available in an upcoming update.';
       containerColor = colorScheme.secondaryContainer.withValues(alpha: 0.5);
       iconColor = colorScheme.secondary;
       textColor = colorScheme.onSecondaryContainer;

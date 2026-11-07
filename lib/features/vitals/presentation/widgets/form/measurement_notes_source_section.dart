@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../../core/constants/app_typography.dart';
 import '../../../../../shared/widgets/forms/custom_text_field.dart';
 import '../../../data/models/measurement_model.dart';
@@ -31,9 +32,7 @@ class MeasurementNotesSourceSection extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Text(
-          isBmi
-              ? 'Source will be recorded as Calculated from profile.'
-              : 'Source will be recorded as Manual. Device and import sources will sync automatically once those integrations are connected.',
+          isBmi ? 'Source will be recorded as Calculated from profile.' : 'Source will be recorded as Manual. Device and import sources will sync automatically once those integrations are connected.',
           style: AppTypography.caption.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: 12,

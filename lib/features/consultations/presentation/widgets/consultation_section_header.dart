@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_typography.dart';
 
 /// Section header displaying uppercase label for consultation form sections.

@@ -1,5 +1,7 @@
 import 'dart:io';
+
 import 'package:dio/dio.dart';
+
 import '../../../../../core/api/api_client.dart';
 import '../../../../../core/api/api_constants.dart';
 import '../../../../../core/api/api_error_parser.dart';
@@ -29,16 +31,20 @@ class UserRemoteDataSource {
               final userMap = Map<String, dynamic>.from(data['user'] as Map);
               if (data['profile'] is Map) {
                 userMap['profile'] = data['profile'];
-                userMap['profile_id'] ??= (data['profile'] as Map)['id'] ??
+                userMap['profile_id'] ??=
+                    (data['profile'] as Map)['id'] ??
                     (data['profile'] as Map)['profile_id'];
-                userMap['server_profile_id'] ??= (data['profile'] as Map)['id'] ??
+                userMap['server_profile_id'] ??=
+                    (data['profile'] as Map)['id'] ??
                     (data['profile'] as Map)['server_profile_id'];
               }
               if (data['primary_profile'] is Map) {
                 userMap['primary_profile'] = data['primary_profile'];
-                userMap['profile_id'] ??= (data['primary_profile'] as Map)['id'] ??
+                userMap['profile_id'] ??=
+                    (data['primary_profile'] as Map)['id'] ??
                     (data['primary_profile'] as Map)['profile_id'];
-                userMap['server_profile_id'] ??= (data['primary_profile'] as Map)['id'] ??
+                userMap['server_profile_id'] ??=
+                    (data['primary_profile'] as Map)['id'] ??
                     (data['primary_profile'] as Map)['server_profile_id'];
               }
               if (data['profile_id'] != null) {

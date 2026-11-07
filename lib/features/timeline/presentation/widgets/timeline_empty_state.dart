@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_icons.dart';
 import '../../../../shared/widgets/feedback/app_empty_state.dart';
 
@@ -12,8 +13,7 @@ class TimelineEmptyState extends StatelessWidget {
   const TimelineEmptyState({
     super.key,
     this.title = 'No medical history yet.',
-    this.subtitle =
-        'Consultations, diagnostic lab reports, vitals, prescriptions, and appointments for this profile will appear here chronologically.',
+    this.subtitle = 'Consultations, diagnostic lab reports, vitals, prescriptions, and appointments for this profile will appear here chronologically.',
     this.actionLabel = 'Create your first health record',
     required this.onAction,
   });

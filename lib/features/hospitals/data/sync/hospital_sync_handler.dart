@@ -37,8 +37,7 @@ class HospitalSyncHandler {
         'email': raw['email'],
       if (raw['city'] != null && raw['city'].toString().isNotEmpty)
         'city': raw['city'],
-      if (raw['client_uuid'] != null)
-        'client_uuid': raw['client_uuid'],
+      if (raw['client_uuid'] != null) 'client_uuid': raw['client_uuid'],
     };
   }
 
@@ -69,7 +68,11 @@ class HospitalSyncHandler {
             ? serverIntId
             : (resolveDeleteServerId != null
                   ? resolveDeleteServerId('hospital_', payload)
-                  : _resolveDeleteServerIdFallback('hospital_', payload, userBox));
+                  : _resolveDeleteServerIdFallback(
+                      'hospital_',
+                      payload,
+                      userBox,
+                    ));
         if (serverId != null) {
           await remoteDataSource.deleteHospital(serverId.toString());
         } else if (payload['_needs_server_id'] == true) {
@@ -107,7 +110,10 @@ class HospitalSyncHandler {
       // 4. Dispatch API call (H4 update or H2 add)
       Map<String, dynamic> res;
       if (operation == 'update' && isServerNumericId) {
-        res = await remoteDataSource.updateHospital(serverIntId.toString(), apiPayload);
+        res = await remoteDataSource.updateHospital(
+          serverIntId.toString(),
+          apiPayload,
+        );
       } else {
         res = await remoteDataSource.addHospital(apiPayload);
       }

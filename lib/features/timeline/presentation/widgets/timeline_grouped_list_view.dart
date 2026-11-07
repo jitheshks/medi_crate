@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../data/models/timeline_event_model.dart';
 import 'timeline_date_header.dart';
 import 'timeline_event_card.dart';

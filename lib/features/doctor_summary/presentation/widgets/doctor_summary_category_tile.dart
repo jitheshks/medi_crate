@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../providers/doctor_summary_providers.dart';
@@ -17,12 +18,14 @@ class DoctorSummaryCategoryTile extends StatefulWidget {
     DoctorSummaryCategory category,
     bool? currentTristate,
     List<Map<String, dynamic>> items,
-  ) onToggleCategory;
+  )
+  onToggleCategory;
   final void Function(
     String itemId,
     bool isSelected,
     DoctorSummaryCategory category,
-  ) onToggleItem;
+  )
+  onToggleItem;
 
   const DoctorSummaryCategoryTile({
     super.key,
@@ -52,8 +55,9 @@ class _DoctorSummaryCategoryTileState extends State<DoctorSummaryCategoryTile> {
     final categoryItemIds = widget.items
         .map((i) => getSummaryItemId(i, widget.category))
         .toSet();
-    final deselectedCount =
-        categoryItemIds.intersection(widget.deselectedIds).length;
+    final deselectedCount = categoryItemIds
+        .intersection(widget.deselectedIds)
+        .length;
 
     bool? tristateVal;
     if (!widget.isCategorySelected) {
@@ -94,7 +98,11 @@ class _DoctorSummaryCategoryTileState extends State<DoctorSummaryCategoryTile> {
                     );
                   },
                 ),
-                Icon(widget.category.icon, size: 20, color: colorScheme.primary),
+                Icon(
+                  widget.category.icon,
+                  size: 20,
+                  color: colorScheme.primary,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -136,7 +144,8 @@ class _DoctorSummaryCategoryTileState extends State<DoctorSummaryCategoryTile> {
           else
             ...widget.items.map((item) {
               final id = getSummaryItemId(item, widget.category);
-              final isItemSelected = widget.isCategorySelected &&
+              final isItemSelected =
+                  widget.isCategorySelected &&
                   !widget.deselectedIds.contains(id);
 
               return CheckboxListTile(
@@ -148,8 +157,9 @@ class _DoctorSummaryCategoryTileState extends State<DoctorSummaryCategoryTile> {
                 title: Text(
                   widget.titleBuilder(item),
                   style: AppTypography.caption.copyWith(
-                    fontWeight:
-                        isItemSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isItemSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                     color: isItemSelected
                         ? colorScheme.onSurface
                         : colorScheme.onSurfaceVariant,

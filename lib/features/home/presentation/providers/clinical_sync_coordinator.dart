@@ -107,8 +107,9 @@ Future<void> _executeClinicalSync(
       try {
         await ref.read(profileRepositoryProvider).pullProfiles(user.id);
         if (isDisposed()) return;
-        final updated =
-            await ref.read(profileRepositoryProvider).getProfiles(user.id);
+        final updated = await ref
+            .read(profileRepositoryProvider)
+            .getProfiles(user.id);
         if (updated.isNotEmpty) {
           try {
             ref.read(profilesListProvider.notifier).setProfiles(updated);

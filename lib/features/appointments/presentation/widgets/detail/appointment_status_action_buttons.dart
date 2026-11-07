@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../consultations/data/models/consultation_model.dart';
 import '../../../../consultations/presentation/providers/consultation_providers.dart';
 import '../../../../../app/routes/app_routes.dart';

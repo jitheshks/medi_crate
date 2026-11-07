@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../shared/widgets/forms/app_search_field.dart';
 import 'vital_filter_chips_bar.dart';
 

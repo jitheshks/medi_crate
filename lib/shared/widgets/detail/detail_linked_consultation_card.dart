@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
@@ -49,10 +50,11 @@ class DetailLinkedConsultationCard extends StatelessWidget {
         ),
         child: Icon(AppIcons.stethoscope, color: colorScheme.primary, size: 20),
       ),
-      onTap: onTap ??
+      onTap:
+          onTap ??
           () => context.pushGuarded(
-                AppRoutes.consultationDetail(consultation.id),
-              ),
+            AppRoutes.consultationDetail(consultation.id),
+          ),
     );
   }
 }

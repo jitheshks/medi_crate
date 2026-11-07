@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_radius.dart';
 import '../../../../core/theme/app_semantic_colors.dart';
 import 'detail_status_pill.dart';

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
@@ -211,9 +212,9 @@ class _MeasurementsListScreenState
                                     dateKey.toUpperCase(),
                                     style: AppTypography.caption.copyWith(
                                       fontWeight: FontWeight.bold,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
                                       letterSpacing: 0.8,
                                     ),
                                   ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/theme/app_semantic_colors.dart';
@@ -26,9 +27,7 @@ class DoctorSummaryPatientHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.outline.withValues(alpha: 0.6),
-        ),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,29 +68,20 @@ class DoctorSummaryPatientHeader extends StatelessWidget {
                   );
                 }
 
-                return Tooltip(
-                  message: dateLabel,
-                  child: chip,
-                );
+                return Tooltip(message: dateLabel, child: chip);
               }
 
               final textDirection =
                   Directionality.maybeOf(context) ?? TextDirection.ltr;
 
               final namePainter = TextPainter(
-                text: TextSpan(
-                  text: p.fullName,
-                  style: nameStyle,
-                ),
+                text: TextSpan(text: p.fullName, style: nameStyle),
                 maxLines: 1,
                 textDirection: textDirection,
               )..layout();
 
               final chipPainter = TextPainter(
-                text: TextSpan(
-                  text: dateLabel,
-                  style: chipTextStyle,
-                ),
+                text: TextSpan(text: dateLabel, style: chipTextStyle),
                 maxLines: 1,
                 textDirection: textDirection,
               )..layout();
@@ -116,7 +106,8 @@ class DoctorSummaryPatientHeader extends StatelessWidget {
                     ),
                     const SizedBox(width: spacing),
                     buildChip(
-                      maxWidth: constraints.maxWidth - namePainter.width - spacing,
+                      maxWidth:
+                          constraints.maxWidth - namePainter.width - spacing,
                     ),
                   ],
                 );
@@ -131,9 +122,7 @@ class DoctorSummaryPatientHeader extends StatelessWidget {
                       style: nameStyle,
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    buildChip(
-                      maxWidth: constraints.maxWidth,
-                    ),
+                    buildChip(maxWidth: constraints.maxWidth),
                   ],
                 );
               }
@@ -145,8 +134,7 @@ class DoctorSummaryPatientHeader extends StatelessWidget {
             [
               p.relationship.toUpperCase(),
               p.gender ?? 'Unspecified',
-              if (summary.formattedAge != null)
-                'Age: ${summary.formattedAge}',
+              if (summary.formattedAge != null) 'Age: ${summary.formattedAge}',
               if (summary.formattedDob != null && summary.formattedAge == null)
                 'DOB: ${summary.formattedDob}',
               'Blood: ${p.bloodGroup ?? 'N/A'}',

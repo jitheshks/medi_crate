@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -185,8 +186,7 @@ class _MedicinesListScreenState extends ConsumerState<MedicinesListScreen> {
                   if (allMedicines.isEmpty) {
                     return const MedicinesEmptyState(
                       title: 'No medicines added yet.',
-                      subtitle:
-                          'Track your prescriptions and active medications securely.',
+                      subtitle: 'Track your prescriptions and active medications securely.',
                     );
                   }
 
@@ -194,8 +194,7 @@ class _MedicinesListScreenState extends ConsumerState<MedicinesListScreen> {
                   if (filtered.isEmpty) {
                     return MedicinesEmptyState(
                       title: 'No medicines match your filters.',
-                      subtitle:
-                          'Try adjusting your search terms or filter selection.',
+                      subtitle: 'Try adjusting your search terms or filter selection.',
                       buttonText: 'Clear Filters',
                       onPressed: () {
                         setState(() {

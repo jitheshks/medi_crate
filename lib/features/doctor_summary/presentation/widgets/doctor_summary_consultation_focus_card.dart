@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/utils/date_formatter.dart';
@@ -173,23 +174,16 @@ class _DoctorSummaryConsultationFocusCardState
               )
             else
               ...widget.consultations.map((c) {
-                final id = c['id']?.toString() ??
-                    c['uuid']?.toString() ??
-                    '';
+                final id = c['id']?.toString() ?? c['uuid']?.toString() ?? '';
                 final isSelected = selectedConsultationIds.contains(id);
                 final docName = c['doctor_name'] ?? 'Doctor';
-                final spec = c['specialization'] ??
-                    c['doctor_specialization'] ??
-                    '';
+                final spec =
+                    c['specialization'] ?? c['doctor_specialization'] ?? '';
                 final dateStr = _formatDate(
-                  c['consultation_date'] ??
-                      c['date'] ??
-                      c['created_at'],
+                  c['consultation_date'] ?? c['date'] ?? c['created_at'],
                 );
-                final diagnosis = c['diagnosis'] ??
-                    c['reason_for_visit'] ??
-                    c['notes'] ??
-                    '';
+                final diagnosis =
+                    c['diagnosis'] ?? c['reason_for_visit'] ?? c['notes'] ?? '';
 
                 return CheckboxListTile(
                   dense: true,

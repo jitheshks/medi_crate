@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../features/appointments/presentation/providers/appointment_providers.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../features/consultations/presentation/providers/consultation_providers.dart';
@@ -240,8 +241,7 @@ class ManualSyncController extends AsyncNotifier<ManualSyncResult?> {
         }
       }
     } catch (_) {
-      message =
-          'Synchronization could not be completed. It will retry automatically.';
+      message = 'Synchronization could not be completed. It will retry automatically.';
       isSuccess = false;
     }
 

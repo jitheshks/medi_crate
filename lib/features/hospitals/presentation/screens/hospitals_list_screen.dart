@@ -107,9 +107,9 @@ class _HospitalsListScreenState extends ConsumerState<HospitalsListScreen> {
                             return Text(
                               label,
                               style: AppTypography.subtitle.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                                 fontWeight: FontWeight.w600,
                               ),
                               maxLines: 1,
@@ -193,8 +193,7 @@ class _HospitalsListScreenState extends ConsumerState<HospitalsListScreen> {
       iconColor: context.semanticColors.hospitalAccent,
       iconContainerColor: context.semanticColors.hospitalAccentContainer,
       title: 'No hospitals added yet',
-      message:
-          'Add hospitals, clinics, and laboratories to associate with your doctors and medical records.',
+      message: 'Add hospitals, clinics, and laboratories to associate with your doctors and medical records.',
     );
   }
 

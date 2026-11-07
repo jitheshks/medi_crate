@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/utils/date_formatter.dart';
@@ -17,12 +18,14 @@ class DoctorSummaryCategorySection extends StatelessWidget {
     DoctorSummaryCategory category,
     bool? currentTristate,
     List<Map<String, dynamic>> items,
-  ) onToggleCategory;
+  )
+  onToggleCategory;
   final void Function(
     String itemId,
     bool isSelected,
     DoctorSummaryCategory category,
-  ) onToggleItem;
+  )
+  onToggleItem;
 
   const DoctorSummaryCategorySection({
     super.key,
@@ -105,9 +108,7 @@ class DoctorSummaryCategorySection extends StatelessWidget {
           color: colorScheme.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: colorScheme.outline.withValues(alpha: 0.6),
-            ),
+            side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.6)),
           ),
           child: Column(
             children: [
@@ -115,48 +116,44 @@ class DoctorSummaryCategorySection extends StatelessWidget {
                 category: DoctorSummaryCategory.medications,
                 items: combinedSummary.medicines,
                 isLast: false,
-                isCategorySelected:
-                    selectedCategories.contains(DoctorSummaryCategory.medications),
+                isCategorySelected: selectedCategories.contains(
+                  DoctorSummaryCategory.medications,
+                ),
                 deselectedIds: deselectedIds,
                 onToggleCategory: onToggleCategory,
                 onToggleItem: onToggleItem,
-                titleBuilder: (m) => (m['name'] ??
-                        m['medication_name'] ??
-                        'Medication')
-                    .toString(),
+                titleBuilder: (m) =>
+                    (m['name'] ?? m['medication_name'] ?? 'Medication')
+                        .toString(),
                 subtitleBuilder: (m) => [
                   if (m['dosage'] != null) m['dosage']?.toString(),
                   if (m['frequency'] != null) m['frequency']?.toString(),
                   if (m['doctor_name'] != null) 'Dr. ${m['doctor_name']}',
                   if (m['prescribed_date'] != null || m['created_at'] != null)
-                    _formatDate(
-                      m['prescribed_date'] ?? m['created_at'],
-                    ),
+                    _formatDate(m['prescribed_date'] ?? m['created_at']),
                 ].where((s) => s != null && s.isNotEmpty).join(' · '),
               ),
               DoctorSummaryCategoryTile(
                 category: DoctorSummaryCategory.consultations,
                 items: combinedSummary.consultations,
                 isLast: false,
-                isCategorySelected: selectedCategories
-                    .contains(DoctorSummaryCategory.consultations),
+                isCategorySelected: selectedCategories.contains(
+                  DoctorSummaryCategory.consultations,
+                ),
                 deselectedIds: deselectedIds,
                 onToggleCategory: onToggleCategory,
                 onToggleItem: onToggleItem,
                 titleBuilder: (c) {
                   final doc = c['doctor_name'] ?? 'Doctor';
-                  final spec = c['specialization'] ??
-                      c['doctor_specialization'] ??
-                      '';
+                  final spec =
+                      c['specialization'] ?? c['doctor_specialization'] ?? '';
                   return spec.toString().isNotEmpty
                       ? 'Dr. $doc ($spec)'
                       : 'Dr. $doc';
                 },
                 subtitleBuilder: (c) => [
                   _formatDate(
-                    c['consultation_date'] ??
-                        c['date'] ??
-                        c['created_at'],
+                    c['consultation_date'] ?? c['date'] ?? c['created_at'],
                   ),
                   if (c['diagnosis'] != null || c['reason_for_visit'] != null)
                     (c['diagnosis'] ?? c['reason_for_visit'])?.toString(),
@@ -166,19 +163,17 @@ class DoctorSummaryCategorySection extends StatelessWidget {
                 category: DoctorSummaryCategory.reports,
                 items: combinedSummary.reports,
                 isLast: false,
-                isCategorySelected:
-                    selectedCategories.contains(DoctorSummaryCategory.reports),
+                isCategorySelected: selectedCategories.contains(
+                  DoctorSummaryCategory.reports,
+                ),
                 deselectedIds: deselectedIds,
                 onToggleCategory: onToggleCategory,
                 onToggleItem: onToggleItem,
-                titleBuilder: (r) => (r['test_name'] ??
-                        r['title'] ??
-                        'Medical Report')
-                    .toString(),
+                titleBuilder: (r) =>
+                    (r['test_name'] ?? r['title'] ?? 'Medical Report')
+                        .toString(),
                 subtitleBuilder: (r) => [
-                  _formatDate(
-                    r['test_date'] ?? r['date'] ?? r['created_at'],
-                  ),
+                  _formatDate(r['test_date'] ?? r['date'] ?? r['created_at']),
                   if (r['category'] != null) r['category']?.toString(),
                   if (r['facility'] != null || r['hospital_name'] != null)
                     (r['facility'] ?? r['hospital_name'])?.toString(),
@@ -190,21 +185,19 @@ class DoctorSummaryCategorySection extends StatelessWidget {
                 category: DoctorSummaryCategory.appointments,
                 items: combinedSummary.appointments,
                 isLast: false,
-                isCategorySelected: selectedCategories
-                    .contains(DoctorSummaryCategory.appointments),
+                isCategorySelected: selectedCategories.contains(
+                  DoctorSummaryCategory.appointments,
+                ),
                 deselectedIds: deselectedIds,
                 onToggleCategory: onToggleCategory,
                 onToggleItem: onToggleItem,
                 titleBuilder: (a) {
-                  final doc =
-                      a['doctor_name'] ?? a['doctor'] ?? 'Doctor';
+                  final doc = a['doctor_name'] ?? a['doctor'] ?? 'Doctor';
                   return 'Appointment: $doc';
                 },
                 subtitleBuilder: (a) => [
                   _formatDate(
-                    a['appointment_date'] ??
-                        a['date'] ??
-                        a['created_at'],
+                    a['appointment_date'] ?? a['date'] ?? a['created_at'],
                   ),
                   if (a['status'] != null) a['status']?.toString(),
                   if (a['department'] != null) a['department']?.toString(),
@@ -214,16 +207,16 @@ class DoctorSummaryCategorySection extends StatelessWidget {
                 category: DoctorSummaryCategory.vitals,
                 items: combinedSummary.vitals,
                 isLast: false,
-                isCategorySelected:
-                    selectedCategories.contains(DoctorSummaryCategory.vitals),
+                isCategorySelected: selectedCategories.contains(
+                  DoctorSummaryCategory.vitals,
+                ),
                 deselectedIds: deselectedIds,
                 onToggleCategory: onToggleCategory,
                 onToggleItem: onToggleItem,
                 titleBuilder: (v) {
                   final type = v['title'] ?? v['type'] ?? 'Vital';
                   final val = v['value'] ?? v['reading'] ?? '--';
-                  final unit =
-                      v['unit'] != null ? ' ${v['unit']}' : '';
+                  final unit = v['unit'] != null ? ' ${v['unit']}' : '';
                   return '$type: $val$unit';
                 },
                 subtitleBuilder: (v) => _formatDate(
@@ -234,13 +227,13 @@ class DoctorSummaryCategorySection extends StatelessWidget {
                 category: DoctorSummaryCategory.doctors,
                 items: combinedSummary.doctors,
                 isLast: false,
-                isCategorySelected:
-                    selectedCategories.contains(DoctorSummaryCategory.doctors),
+                isCategorySelected: selectedCategories.contains(
+                  DoctorSummaryCategory.doctors,
+                ),
                 deselectedIds: deselectedIds,
                 onToggleCategory: onToggleCategory,
                 onToggleItem: onToggleItem,
-                titleBuilder: (d) =>
-                    (d['name'] ?? 'Doctor').toString(),
+                titleBuilder: (d) => (d['name'] ?? 'Doctor').toString(),
                 subtitleBuilder: (d) => [
                   if (d['specialization'] != null)
                     d['specialization']?.toString(),
@@ -252,8 +245,9 @@ class DoctorSummaryCategorySection extends StatelessWidget {
                 category: DoctorSummaryCategory.hospitals,
                 items: combinedSummary.hospitals,
                 isLast: true,
-                isCategorySelected: selectedCategories
-                    .contains(DoctorSummaryCategory.hospitals),
+                isCategorySelected: selectedCategories.contains(
+                  DoctorSummaryCategory.hospitals,
+                ),
                 deselectedIds: deselectedIds,
                 onToggleCategory: onToggleCategory,
                 onToggleItem: onToggleItem,
@@ -274,18 +268,12 @@ class DoctorSummaryCategorySection extends StatelessWidget {
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: colorScheme.outlineVariant,
-            ),
+            border: Border.all(color: colorScheme.outlineVariant),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.shield_outlined,
-                size: 16,
-                color: colorScheme.primary,
-              ),
+              Icon(Icons.shield_outlined, size: 16, color: colorScheme.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -41,9 +42,8 @@ class ApiLogger extends Interceptor {
 
     if (!kReleaseMode && sanitizedData != null) {
       try {
-        final prettyJson = const JsonEncoder.withIndent(
-          '  ',
-        ).convert(sanitizedData);
+        final prettyJson = const JsonEncoder.withIndent('  ')
+            .convert(sanitizedData);
         debugPrint('   ↳ [Request Body]:\n$prettyJson');
       } catch (_) {
         debugPrint('   ↳ [Request Body]: $sanitizedData');
@@ -141,9 +141,8 @@ class ApiLogger extends Interceptor {
     debugPrint(logSummary);
     if (!kReleaseMode && sanitizedData != null) {
       try {
-        final prettyErrBody = const JsonEncoder.withIndent(
-          '  ',
-        ).convert(sanitizedData);
+        final prettyErrBody = const JsonEncoder.withIndent('  ')
+            .convert(sanitizedData);
         debugPrint('   ↳ [Response Error Body]:\n$prettyErrBody');
       } catch (_) {
         debugPrint('   ↳ [Response Error Body]: $sanitizedData');

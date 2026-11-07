@@ -196,8 +196,7 @@ class HealthVaultScoreCalculator {
         HealthInsightRecommendation(
           id: 'rec_vault_profile_$profileId',
           title: 'Complete your personal health profile',
-          description:
-              'Fill in blood group, height, weight, and allergy or condition status to complete your profile.',
+          description: 'Fill in blood group, height, weight, and allergy or condition status to complete your profile.',
           actionLabel: 'Complete Profile',
           targetRoute: '/profiles',
           icon: AppIcons.userCheck,
@@ -223,8 +222,7 @@ class HealthVaultScoreCalculator {
         HealthInsightRecommendation(
           id: 'rec_vault_consultations_$profileId',
           title: 'Add a recent consultation',
-          description:
-              "No consultation has been recorded within the score's freshness window.",
+          description: "No consultation has been recorded within the score's freshness window.",
           actionLabel: 'Add Consultation',
           targetRoute: '/consultations',
           icon: AppIcons.calendar,
@@ -237,8 +235,7 @@ class HealthVaultScoreCalculator {
         HealthInsightRecommendation(
           id: 'rec_vault_reports_$profileId',
           title: 'Add a recent report',
-          description:
-              "No report has been recorded within the score's freshness window.",
+          description: "No report has been recorded within the score's freshness window.",
           actionLabel: 'Add Report',
           targetRoute: '/reports',
           icon: AppIcons.fileText,

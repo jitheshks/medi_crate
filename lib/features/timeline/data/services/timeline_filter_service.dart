@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+
 import '../models/timeline_event_model.dart';
 
 class TimelineFilterService {

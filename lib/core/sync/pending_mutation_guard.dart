@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+
 import '../utils/id_utils.dart';
 
 /// PendingMutationGuard protects local Hive state during remote pull-sync.

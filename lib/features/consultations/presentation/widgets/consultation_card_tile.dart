@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/constants/app_radius.dart';
@@ -17,9 +18,8 @@ class ConsultationCardTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final semanticColors = context.semanticColors;
-    final formattedDate = DateFormat(
-      'dd MMM yyyy',
-    ).format(consultation.visitDate);
+    final formattedDate = DateFormat('dd MMM yyyy')
+        .format(consultation.visitDate);
 
     // Follow-up status determination
     String statusText;

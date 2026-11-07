@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
 import '../../../../shared/widgets/buttons/primary_button.dart';
@@ -38,23 +39,19 @@ class HelpSupportSettingsScreen extends StatelessWidget {
     final faqs = [
       {
         'q': 'Is my medical data safe in MediCrate?',
-        'a':
-            'Yes. All health records are stored locally in Hive encrypted storage on your device. MediCrate operates on an offline-first architecture.',
+        'a': 'Yes. All health records are stored locally in Hive encrypted storage on your device. MediCrate operates on an offline-first architecture.',
       },
       {
         'q': 'How does offline synchronization work?',
-        'a':
-            'When you are offline, all changes are saved to your local Hive queue. As soon as connectivity returns, SyncService drains the queue in the background.',
+        'a': 'When you are offline, all changes are saved to your local Hive queue. As soon as connectivity returns, SyncService drains the queue in the background.',
       },
       {
         'q': 'Can I export my medical records?',
-        'a':
-            'Yes. You can generate client-side PDF summaries anytime from Settings > Export Health Records without needing server access.',
+        'a': 'Yes. You can generate client-side PDF summaries anytime from Settings > Export Health Records without needing server access.',
       },
       {
         'q': 'What platforms are supported?',
-        'a':
-            'MediCrate runs natively across Android, iOS, Windows, macOS, Linux, and modern Web browsers with responsive layouts.',
+        'a': 'MediCrate runs natively across Android, iOS, Windows, macOS, Linux, and modern Web browsers with responsive layouts.',
       },
     ];
 

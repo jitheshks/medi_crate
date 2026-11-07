@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../home/presentation/providers/clinical_sync_coordinator.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';

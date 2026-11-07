@@ -45,7 +45,11 @@ class MeasurementSyncHandler {
             ? serverIntId
             : (resolveDeleteServerId != null
                   ? resolveDeleteServerId('measurement_', payload)
-                  : _resolveDeleteServerIdFallback('measurement_', payload, userBox));
+                  : _resolveDeleteServerIdFallback(
+                      'measurement_',
+                      payload,
+                      userBox,
+                    ));
         if (serverId != null) {
           await remoteDataSource.deleteVital(serverId.toString());
         } else if (payload['_needs_server_id'] == true) {

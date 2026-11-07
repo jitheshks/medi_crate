@@ -100,17 +100,16 @@ class _DoctorsListScreenState extends ConsumerState<DoctorsListScreen> {
                           data: (all) {
                             final total = all.length;
                             final filtered =
-                                filteredDoctorsAsync.value?.length ??
-                                total;
+                                filteredDoctorsAsync.value?.length ?? total;
                             final label = searchQuery.isNotEmpty
                                 ? '$filtered of $total doctors'
                                 : '$total doctors';
                             return Text(
                               label,
                               style: AppTypography.subtitle.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                                 fontWeight: FontWeight.w600,
                               ),
                               maxLines: 1,
@@ -192,8 +191,7 @@ class _DoctorsListScreenState extends ConsumerState<DoctorsListScreen> {
     return AppEmptyState(
       icon: AppIcons.stethoscope,
       title: 'No doctors added yet',
-      message:
-          'Add your doctors, clinics, and specialists to keep your medical history organized.',
+      message: 'Add your doctors, clinics, and specialists to keep your medical history organized.',
     );
   }
 

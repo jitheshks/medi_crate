@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../../app/routes/app_routes.dart';
 import '../../../../../core/constants/app_typography.dart';
 import '../../../../../core/extensions/build_context_extensions.dart';
@@ -26,11 +27,9 @@ class BmiCalculationView extends StatelessWidget {
         missingMessage =
             'Add your height and weight to your profile to calculate BMI.';
       } else if (!hasHeight) {
-        missingMessage =
-            'Height is required to calculate BMI. Update your profile with your height.';
+        missingMessage = 'Height is required to calculate BMI. Update your profile with your height.';
       } else {
-        missingMessage =
-            'Weight is required to calculate BMI. Update your profile with your weight.';
+        missingMessage = 'Weight is required to calculate BMI. Update your profile with your weight.';
       }
 
       return Container(
@@ -117,9 +116,8 @@ class BmiCalculationView extends StatelessWidget {
               Container(
                 height: 36,
                 width: 1,
-                color: Theme.of(
-                  context,
-                ).colorScheme.outline.withValues(alpha: 0.5),
+                color: Theme.of(context).colorScheme.outline
+                    .withValues(alpha: 0.5),
               ),
               Column(
                 children: [
@@ -153,9 +151,8 @@ class BmiCalculationView extends StatelessWidget {
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.3),
+              color: Theme.of(context).colorScheme.primary
+                  .withValues(alpha: 0.3),
               width: 1.5,
             ),
           ),

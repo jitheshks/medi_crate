@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import '../../../../core/utils/id_utils.dart';
 
 /// Represents a single file attachment for a medical report.
@@ -194,8 +195,7 @@ class ReportModel {
   final String id;
   final String profileId;
   final String title;
-  final String
-  category; // 'LAB TEST', 'IMAGING', 'PRESCRIPTION', 'DISCHARGE', 'CERTIFICATE', 'VACCINATION', 'REFERRAL', 'OTHER'
+  final String category; // 'LAB TEST', 'IMAGING', 'PRESCRIPTION', 'DISCHARGE', 'CERTIFICATE', 'VACCINATION', 'REFERRAL', 'OTHER'
   final DateTime date;
   final String? doctorId;
   final String? doctorName;

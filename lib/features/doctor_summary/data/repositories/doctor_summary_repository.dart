@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/storage/hive_service.dart';
 import '../../../appointments/data/repositories/appointment_repository.dart';
 import '../../../consultations/data/repositories/consultation_repository.dart';

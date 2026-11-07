@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+
 import '../utils/id_utils.dart';
 
 /// Helper for querying entity records scoped to a specific profile from Hive [userBox].
@@ -26,8 +27,8 @@ class HiveProfileQueryHelper {
         final val = userBox.get(key);
         if (val is Map) {
           final map = Map<String, dynamic>.from(val);
-          final storedProfId =
-              (map['profile_id'] ?? map['profileId'])?.toString();
+          final storedProfId = (map['profile_id'] ?? map['profileId'])
+              ?.toString();
           if (IdUtils.matchesProfileId(
             storedProfId,
             profileId,

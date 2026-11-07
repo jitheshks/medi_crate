@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/misc.dart';
+
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../doctors/presentation/providers/doctors_providers.dart';
 import '../../../hospitals/presentation/providers/hospitals_providers.dart';
@@ -319,7 +320,6 @@ Future<void> _saveConsultationRecord({
     createdAt: DateTime.now(),
   );
 
-  await read(
-    consultationsListNotifierProvider.notifier,
-  ).saveConsultation(model);
+  await read(consultationsListNotifierProvider.notifier)
+      .saveConsultation(model);
 }

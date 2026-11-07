@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_spacing.dart';
 
 /// InsightsSkeletonLoading provides an animated skeleton placeholder layout

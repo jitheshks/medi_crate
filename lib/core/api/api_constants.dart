@@ -17,8 +17,8 @@ abstract class ApiConstants {
     if (!dotenv.isInitialized) {
       return '';
     }
-    final key = dotenv.maybeGet(envApiKeyName) ??
-        dotenv.maybeGet(legacyEnvApiKeyName);
+    final key =
+        dotenv.maybeGet(envApiKeyName) ?? dotenv.maybeGet(legacyEnvApiKeyName);
     return key?.trim() ?? '';
   }
 

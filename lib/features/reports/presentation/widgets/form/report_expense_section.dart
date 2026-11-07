@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../../core/constants/app_currency.dart';
 import '../../../../../core/constants/app_radius.dart';
 import '../../../../../core/constants/app_typography.dart';
@@ -104,9 +105,8 @@ class ReportExpenseSection extends StatelessWidget {
                       final hasAmount = value.text.trim().isNotEmpty;
                       if (!hasAmount) return const SizedBox.shrink();
 
-                      final reduceMotion = MediaQuery.of(
-                        context,
-                      ).disableAnimations;
+                      final reduceMotion = MediaQuery.of(context)
+                          .disableAnimations;
                       final duration = reduceMotion
                           ? Duration.zero
                           : const Duration(milliseconds: 180);

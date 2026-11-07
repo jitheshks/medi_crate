@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_icons.dart';
 import '../../../../shared/widgets/feedback/app_empty_state.dart';
 
@@ -12,8 +13,7 @@ class ReportEmptyState extends StatelessWidget {
   const ReportEmptyState({
     super.key,
     this.title = 'No reports available.',
-    this.subtitle =
-        'Diagnostic lab tests, prescriptions, and imaging files for this profile will appear here.',
+    this.subtitle = 'Diagnostic lab tests, prescriptions, and imaging files for this profile will appear here.',
     this.actionLabel,
     this.onAction,
   });

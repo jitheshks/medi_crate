@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:image_picker/image_picker.dart';
 
 /// Camera and file picker abstraction for prescription document scanning.

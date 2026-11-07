@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:dio/dio.dart';
+
 import '../exceptions/app_exception.dart';
 
 /// ApiErrorParser parses structured Laravel API responses and converts Dio exceptions
@@ -250,9 +252,7 @@ abstract class ApiErrorParser {
             message.toLowerCase().contains('referenced by other') ||
             message.toLowerCase().contains('linked records')) {
           return ResourceHasDependenciesException(
-            message.isNotEmpty
-                ? message
-                : 'This resource cannot be deleted because other records depend on it.',
+            message.isNotEmpty ? message : 'This resource cannot be deleted because other records depend on it.',
             errors: validationErrors,
           );
         }
@@ -282,9 +282,7 @@ abstract class ApiErrorParser {
 
       case 501:
         return FeatureUnavailableException(
-          message.isNotEmpty
-              ? message
-              : 'This feature is currently being integrated and will be available soon.',
+          message.isNotEmpty ? message : 'This feature is currently being integrated and will be available soon.',
           errors: validationErrors,
         );
 

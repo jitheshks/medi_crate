@@ -5,11 +5,7 @@ void main() {
   testWidgets('MediCrate initial smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Text('MediCrate'),
-          ),
-        ),
+        home: Scaffold(body: Center(child: Text('MediCrate'))),
       ),
     );
 

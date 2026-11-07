@@ -11,8 +11,7 @@ const String kGoogleWebServerClientId =
 /// Container for Google Sign-In diagnostic result.
 class GoogleAuthResult {
   final String? firebaseIdToken;
-  final String?
-  failureStage; // 'A_ACCOUNT_SELECTION' | 'B_FIREBASE_AUTH' | 'C_TOKEN_GENERATION'
+  final String? failureStage; // 'A_ACCOUNT_SELECTION' | 'B_FIREBASE_AUTH' | 'C_TOKEN_GENERATION'
   final String? errorMessage;
   final bool isCancelled;
 

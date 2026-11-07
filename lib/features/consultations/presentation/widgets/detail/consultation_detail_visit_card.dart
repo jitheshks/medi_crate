@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../../core/constants/app_icons.dart';
 import '../../../../../shared/widgets/detail/detail_widgets.dart';
 import '../../../../doctors/presentation/providers/doctors_providers.dart';

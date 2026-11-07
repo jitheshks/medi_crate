@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../../core/constants/app_radius.dart';
 import '../../../../../core/constants/app_typography.dart';
 import '../consultation_section_header.dart';
@@ -97,8 +98,7 @@ class ConsultationClinicalSection extends StatelessWidget {
           style: TextStyle(color: colorScheme.onSurface),
           decoration: _buildInputDecoration(
             context,
-            hintText:
-                'Doctor observations, treatment plan, lifestyle modifications, prescriptions...',
+            hintText: 'Doctor observations, treatment plan, lifestyle modifications, prescriptions...',
           ),
         ),
       ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../core/constants/app_radius.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/theme/app_semantic_colors.dart';
@@ -95,9 +96,8 @@ class NotificationCard extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            DateFormat(
-                              'd MMM yyyy · HH:mm',
-                            ).format(notification.date),
+                            DateFormat('d MMM yyyy · HH:mm')
+                                .format(notification.date),
                             style: AppTypography.caption.copyWith(
                               fontSize: 12,
                               color: colorScheme.onSurfaceVariant,

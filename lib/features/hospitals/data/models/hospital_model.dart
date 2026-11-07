@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import '../../../../core/utils/id_utils.dart';
 
 /// HospitalModel represents a profile-scoped healthcare facility or clinic.

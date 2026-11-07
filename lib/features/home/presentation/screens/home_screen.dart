@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../shared/widgets/feedback/app_error_state.dart';
 import '../../../../shared/widgets/feedback/offline_banner.dart';
 import '../../../../shared/widgets/feedback/pulsing_vault_logo.dart';

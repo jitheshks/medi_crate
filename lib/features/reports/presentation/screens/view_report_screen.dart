@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_currency.dart';
 import '../../../../core/constants/app_icons.dart';
@@ -170,9 +171,9 @@ class ViewReportScreen extends ConsumerWidget {
                             'No attachments on this report.',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -263,8 +264,7 @@ class ViewReportScreen extends ConsumerWidget {
       title: 'Delete this report?',
       recordName: report.title,
       recordType: 'Report',
-      reassuranceMessage:
-          'Deleting this report will not delete the linked doctor, hospital, or consultation.',
+      reassuranceMessage: 'Deleting this report will not delete the linked doctor, hospital, or consultation.',
       onConfirm: () {},
     );
 

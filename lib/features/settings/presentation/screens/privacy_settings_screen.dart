@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/theme/app_semantic_colors.dart';
 import '../../data/models/consent_record_model.dart';
@@ -99,9 +100,8 @@ class PrivacySettingsScreen extends ConsumerWidget {
                     ),
                   ]
                 : consentList.map((ConsentRecordModel item) {
-                    final dateStr = DateFormat(
-                      'MMM dd, yyyy · HH:mm',
-                    ).format(item.timestamp);
+                    final dateStr = DateFormat('MMM dd, yyyy · HH:mm')
+                        .format(item.timestamp);
                     final successBg = context.semanticColors.successContainer;
                     final successFg = context.semanticColors.success;
 
@@ -117,9 +117,9 @@ class PrivacySettingsScreen extends ConsumerWidget {
                                 item.title,
                                 style: AppTypography.bodyMedium.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface,
                                 ),
                               ),
                               Container(
@@ -145,18 +145,18 @@ class PrivacySettingsScreen extends ConsumerWidget {
                           Text(
                             item.details,
                             style: AppTypography.caption.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             dateStr,
                             style: AppTypography.caption.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                           ),
                         ],

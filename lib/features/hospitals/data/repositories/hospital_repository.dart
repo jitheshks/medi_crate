@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../../../../core/api/list_pull_support.dart';
 import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/exceptions/app_exception.dart';
@@ -399,9 +401,8 @@ class HospitalRepository {
           final cleanId = IdUtils.unprefix(hospitalId);
           final raw = await remoteDataSource!.getHospital(cleanId);
           if (raw.isNotEmpty) {
-            final remoteModel = HospitalModel.fromJson(
-              raw,
-            ).copyWith(profileId: profileId);
+            final remoteModel = HospitalModel.fromJson(raw)
+                .copyWith(profileId: profileId);
 
             // Guard against overwriting pending local mutations (I2-C2)
             if (!PendingMutationGuard.hasPendingMutation(

@@ -5,8 +5,7 @@ import 'package:flutter/material.dart';
 class TimelineEventModel {
   final String id;
   final String profileId;
-  final String
-  type; // 'consultation', 'appointment', 'measurement', 'medicine', 'report', 'expense', 'doctor', 'hospital'
+  final String type; // 'consultation', 'appointment', 'measurement', 'medicine', 'report', 'expense', 'doctor', 'hospital'
   final String title;
   final String summary;
   final DateTime? eventDate;

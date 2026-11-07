@@ -144,9 +144,8 @@ class ProfileModel {
     if (trimmed.isEmpty) return null;
     final iso = DateTime.tryParse(trimmed);
     if (iso != null) return iso;
-    final match = RegExp(
-      r'^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$',
-    ).firstMatch(trimmed);
+    final match = RegExp(r'^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$')
+        .firstMatch(trimmed);
     if (match != null) {
       final d = int.parse(match.group(1)!);
       final m = int.parse(match.group(2)!);

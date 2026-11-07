@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../core/constants/app_typography.dart';
 
 /// ExitConfirmationDialog displays a standardized confirmation dialog before exiting the app.

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import 'ocr_medicine_item_draft.dart';
 
 /// Temporary in-memory draft representing raw and parsed OCR extraction result.

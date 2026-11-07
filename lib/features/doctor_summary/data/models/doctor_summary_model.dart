@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../profile/data/models/profile_model.dart';
 
 /// DoctorSummaryModel aggregates profile-scoped clinical history for rapid physician review.

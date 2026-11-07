@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_typography.dart';
 
 /// OtpHeader displays the screen title and masked email description.

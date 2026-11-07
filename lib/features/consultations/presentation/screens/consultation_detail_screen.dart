@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_currency.dart';
 import '../../../../core/constants/app_icons.dart';
@@ -150,9 +151,8 @@ class _ConsultationDetailScreenState
             );
           }
 
-          final visitDateStr = DateFormat(
-            'dd MMM yyyy',
-          ).format(consultation.visitDate);
+          final visitDateStr = DateFormat('dd MMM yyyy')
+              .format(consultation.visitDate);
 
           return DetailScreenScaffold(
             scrollController: _scrollController,

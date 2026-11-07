@@ -1,6 +1,8 @@
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+
 import '../../../../../core/preferences/app_preferences_service.dart';
 import '../../../../../core/storage/hive_service.dart';
 import '../../models/consent_record_model.dart';
@@ -36,8 +38,7 @@ class SettingsLocalDataSource {
         version: 'v1.0',
         timestamp: DateTime.now().subtract(const Duration(days: 1)),
         status: 'Granted',
-        details:
-            'Initial account signup agreement to local data storage & privacy terms.',
+        details: 'Initial account signup agreement to local data storage & privacy terms.',
       );
       hiveService.consentBox.put(defaultConsent.id, defaultConsent.toMap());
       return [defaultConsent];

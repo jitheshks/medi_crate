@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'measurements_list_screen.dart';
 
 /// VitalsScreen presents body metrics and vital measurements for active profile.

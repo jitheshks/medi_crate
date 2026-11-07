@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
+
 import '../storage/secure_storage_service.dart';
 import 'api_constants.dart';
 import 'http_client_factory.dart';

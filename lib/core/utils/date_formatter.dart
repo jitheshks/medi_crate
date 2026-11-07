@@ -45,9 +45,8 @@ abstract class DateFormatter {
       return '$d-$m-$y';
     }
 
-    final matchDdMmYy = RegExp(
-      r'^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$',
-    ).firstMatch(str);
+    final matchDdMmYy = RegExp(r'^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$')
+        .firstMatch(str);
     if (matchDdMmYy != null) {
       final d = int.tryParse(matchDdMmYy.group(1)!)?.toString().padLeft(2, '0');
       final m = int.tryParse(matchDdMmYy.group(2)!)?.toString().padLeft(2, '0');

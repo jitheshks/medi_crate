@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_typography.dart';
 
 /// SignUpHeader renders the top heading and subtitle for the registration screen.

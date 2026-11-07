@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/app_typography.dart';
 
 /// ToggleSettingRow is a reusable row widget containing an icon, title, subtitle, and switch.

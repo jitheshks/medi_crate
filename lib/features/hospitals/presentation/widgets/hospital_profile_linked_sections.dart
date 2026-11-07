@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
@@ -141,8 +142,9 @@ class HospitalProfileConsultationsSection extends ConsumerWidget {
               .map(
                 (c) => DetailLinkedConsultationCard(
                   consultation: c,
-                  contextLabel:
-                      c.doctorName.isNotEmpty ? c.doctorName : 'Doctor',
+                  contextLabel: c.doctorName.isNotEmpty
+                      ? c.doctorName
+                      : 'Doctor',
                 ),
               )
               .toList(),
@@ -179,8 +181,7 @@ class HospitalProfileAppointmentsSection extends ConsumerWidget {
               .map(
                 (a) => DetailLinkedAppointmentCard(
                   appointment: a,
-                  contextLabel:
-                      a.doctorName.isNotEmpty ? a.doctorName : null,
+                  contextLabel: a.doctorName.isNotEmpty ? a.doctorName : null,
                 ),
               )
               .toList(),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
 import '../../../../shared/widgets/dialogs/deletion_impact_dialog.dart';
@@ -168,8 +169,7 @@ class ProfileDeleteHelper {
       recordName: "${profile.fullName}'s Profile",
       recordType: 'Profile',
       impactItems: impactItems,
-      customWarning:
-          'All health records belonging to this profile will be permanently deleted.',
+      customWarning: 'All health records belonging to this profile will be permanently deleted.',
       onConfirm: () async {
         await ref
             .read(profilesListProvider.notifier)

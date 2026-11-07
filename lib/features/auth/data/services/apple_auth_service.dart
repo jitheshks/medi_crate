@@ -263,9 +263,8 @@ class AppleAuthService {
     UserCredential? userCredential;
     try {
       debugPrint('[AppleAuth] Stage B: Firebase Apple credential + sign-in');
-      final oauthCredential = OAuthProvider(
-        'apple.com',
-      ).credential(idToken: identityToken, rawNonce: rawNonce);
+      final oauthCredential = OAuthProvider('apple.com')
+          .credential(idToken: identityToken, rawNonce: rawNonce);
       userCredential = await firebaseAuth.signInWithCredential(oauthCredential);
       debugPrint('[AppleAuth] Firebase authentication succeeded');
     } on FirebaseAuthException catch (e) {

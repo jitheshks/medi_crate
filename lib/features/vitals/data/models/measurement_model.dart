@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import '../../../../core/utils/id_utils.dart';
 import 'measurement_types.dart';
 import 'vital_status_calculator.dart';

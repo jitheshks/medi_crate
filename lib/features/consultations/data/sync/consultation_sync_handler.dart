@@ -209,8 +209,12 @@ class ConsultationSyncHandler {
         final serverId = isServerNumericId
             ? serverIntId
             : (resolveDeleteServerId != null
-                ? resolveDeleteServerId('consultation_', payload)
-                : _resolveDeleteServerIdFallback('consultation_', payload, userBox));
+                  ? resolveDeleteServerId('consultation_', payload)
+                  : _resolveDeleteServerIdFallback(
+                      'consultation_',
+                      payload,
+                      userBox,
+                    ));
         if (serverId != null) {
           await remoteDataSource.deleteConsultation(serverId);
         } else if (payload['_needs_server_id'] == true) {

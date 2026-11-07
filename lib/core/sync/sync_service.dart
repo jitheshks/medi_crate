@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/foundation.dart';
+
 import '../../features/appointments/data/datasources/remote/appointment_remote_data_source.dart';
 import '../../features/appointments/data/sync/appointment_sync_handler.dart';
 import '../../features/consultations/data/datasources/remote/consultation_remote_data_source.dart';

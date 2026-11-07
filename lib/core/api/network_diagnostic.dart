@@ -1,8 +1,10 @@
 import 'dart:io';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
+
 import 'http_client_factory.dart';
 import 'ssl_security_context.dart';
 
@@ -141,9 +143,8 @@ class NetworkDiagnosticService {
 
     // 1. DNS Lookup (IPv4 & IPv6)
     try {
-      final addresses = await InternetAddress.lookup(
-        host,
-      ).timeout(const Duration(seconds: 5));
+      final addresses = await InternetAddress.lookup(host)
+          .timeout(const Duration(seconds: 5));
       if (addresses.isNotEmpty) {
         dnsStatus = DiagnosticStatus.pass;
         results['dnsSuccess'] = true;

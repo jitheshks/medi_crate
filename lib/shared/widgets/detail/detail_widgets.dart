@@ -1,0 +1,16 @@
+export 'dashed_card.dart';
+export 'detail_action_row.dart';
+export 'detail_chip_list.dart';
+export 'detail_expense_card.dart';
+export 'detail_hero.dart';
+export 'detail_info_card.dart';
+export 'detail_info_row.dart';
+export 'detail_linked_appointment_card.dart';
+export 'detail_linked_consultation_card.dart';
+export 'detail_linked_record_card.dart';
+export 'detail_linked_report_card.dart';
+export 'detail_note_box.dart';
+export 'detail_screen_scaffold.dart';
+export 'detail_section.dart';
+export 'detail_section_header.dart';
+export 'detail_status_pill.dart';

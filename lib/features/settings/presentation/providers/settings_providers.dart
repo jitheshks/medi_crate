@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/analytics/analytics_service.dart';
@@ -47,25 +46,39 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   );
 });
 
-class SettingsController extends StateNotifier<SettingsModel> {
-  final SettingsRepository repository;
-  final AnalyticsService analyticsService;
-  final NotificationService notificationService;
+class SettingsController extends Notifier<SettingsModel> {
+  final SettingsRepository? _customRepository;
+  final AnalyticsService? _customAnalyticsService;
+  final NotificationService? _customNotificationService;
 
   SettingsController({
-    required this.repository,
-    required this.analyticsService,
-    required this.notificationService,
-  }) : super(repository.getSettings());
+    SettingsRepository? repository,
+    AnalyticsService? analyticsService,
+    NotificationService? notificationService,
+  })  : _customRepository = repository,
+        _customAnalyticsService = analyticsService,
+        _customNotificationService = notificationService;
+
+  SettingsRepository get _repository =>
+      _customRepository ?? ref.read(settingsRepositoryProvider);
+  AnalyticsService get _analyticsService =>
+      _customAnalyticsService ?? ref.read(analyticsServiceProvider);
+  NotificationService get _notificationService =>
+      _customNotificationService ?? ref.read(notificationServiceProvider);
+
+  @override
+  SettingsModel build() {
+    return _repository.getSettings();
+  }
 
   Future<void> updateSettings(SettingsModel newSettings) async {
     state = newSettings;
-    await repository.saveSettings(newSettings);
-    await analyticsService.setAnalyticsEnabled(newSettings.analyticsEnabled);
-    await analyticsService.setCrashReportingEnabled(
+    await _repository.saveSettings(newSettings);
+    await _analyticsService.setAnalyticsEnabled(newSettings.analyticsEnabled);
+    await _analyticsService.setCrashReportingEnabled(
       newSettings.crashReportingEnabled,
     );
-    await notificationService.updatePreferences(newSettings.toMap());
+    await _notificationService.updatePreferences(newSettings.toMap());
   }
 
   Future<void> setThemeMode(String mode) async {
@@ -80,13 +93,7 @@ class SettingsController extends StateNotifier<SettingsModel> {
 }
 
 final settingsControllerProvider =
-    StateNotifierProvider<SettingsController, SettingsModel>((ref) {
-      return SettingsController(
-        repository: ref.watch(settingsRepositoryProvider),
-        analyticsService: ref.watch(analyticsServiceProvider),
-        notificationService: ref.watch(notificationServiceProvider),
-      );
-    });
+    NotifierProvider<SettingsController, SettingsModel>(SettingsController.new);
 
 final appCurrencyProvider = Provider<String>((ref) {
   return ref.watch(settingsControllerProvider).appCurrency;

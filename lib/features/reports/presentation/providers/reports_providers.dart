@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import '../../../../core/providers/mutable_state_notifier.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/utils/id_utils.dart';
@@ -39,18 +39,18 @@ final reportRepositoryProvider = Provider<ReportRepository>((ref) {
 });
 
 /// Search query provider for live filtering of medical reports.
-final reportSearchQueryProvider = StateProvider<String>((ref) => '');
+final reportSearchQueryProvider = mutableStateProvider<String>('');
 
 /// Category filter chip provider (e.g. 'ALL', 'LAB TEST', 'IMAGING', etc.).
-final reportFilterCategoryProvider = StateProvider<String>((ref) => 'ALL');
+final reportFilterCategoryProvider = mutableStateProvider<String>('ALL');
 
 /// Date range filter provider for reports.
-final reportDateRangeProvider = StateProvider<DateRangeSelection?>(
-  (ref) => null,
-);
+final reportDateRangeProvider =
+    mutableStateProvider<DateRangeSelection?>(null);
 
 /// Sort option provider (e.g., 'NEWEST_FIRST', 'OLDEST_FIRST', 'A_TO_Z', 'Z_TO_A').
-final reportSortOptionProvider = StateProvider<String>((ref) => 'NEWEST_FIRST');
+final reportSortOptionProvider =
+    mutableStateProvider<String>('NEWEST_FIRST');
 
 /// AsyncNotifier managing the medical reports list for active profile with offline-first synchronization.
 class ReportsListNotifier extends AsyncNotifier<List<ReportModel>> {

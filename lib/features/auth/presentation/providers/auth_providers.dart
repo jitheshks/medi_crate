@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../../core/api/api_client.dart';
 import '../../../../core/connectivity/connectivity_service.dart';
@@ -104,13 +103,8 @@ final Provider<AuthRepository> authRepositoryProvider =
       );
     });
 
-final StateNotifierProvider<AuthNotifier, AuthState> authControllerProvider =
-    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-      final repository = ref.watch(authRepositoryProvider);
-      final googleAuth = ref.watch(googleAuthServiceProvider);
-      final appleAuth = ref.watch(appleAuthServiceProvider);
-      return AuthNotifier(repository, ref, googleAuth, appleAuth);
-    });
+final NotifierProvider<AuthNotifier, AuthState> authControllerProvider =
+    NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
 
 /// Controls whether the OTP screen starts the periodic countdown timer.
 /// Enabled by default in production; can be overridden in widget tests.

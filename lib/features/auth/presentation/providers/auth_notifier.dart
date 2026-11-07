@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../../core/exceptions/app_exception.dart';
 import '../../data/datasources/remote/auth_remote_data_source.dart';
@@ -9,22 +8,35 @@ import '../../data/repositories/auth_repository.dart';
 import '../../data/services/apple_auth_service.dart';
 import '../../data/services/google_auth_service.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';
-import 'auth_state.dart';
+import 'auth_providers.dart';
 
-class AuthNotifier extends StateNotifier<AuthState> {
-  final AuthRepository _repository;
-  final Ref? _ref;
-  final GoogleAuthService? _googleAuthService;
-  final AppleAuthService? _appleAuthService;
+class AuthNotifier extends Notifier<AuthState> {
+  final AuthRepository? _customRepository;
+  final GoogleAuthService? _customGoogleAuthService;
+  final AppleAuthService? _customAppleAuthService;
   Future<void>? _initialSessionFuture;
 
-  AuthNotifier(
-    this._repository, [
-    this._ref,
-    this._googleAuthService,
-    this._appleAuthService,
-  ]) : super(const AuthState()) {
+  AuthNotifier([
+    this._customRepository,
+    Ref? _,
+    this._customGoogleAuthService,
+    this._customAppleAuthService,
+  ]);
+
+  AuthRepository get _repository =>
+      _customRepository ?? ref.read(authRepositoryProvider);
+  GoogleAuthService get _googleAuthService =>
+      _customGoogleAuthService ?? ref.read(googleAuthServiceProvider);
+  AppleAuthService get _appleAuthService =>
+      _customAppleAuthService ?? ref.read(appleAuthServiceProvider);
+
+  /// Whether this notifier is currently mounted and active.
+  bool get mounted => ref.mounted;
+
+  @override
+  AuthState build() {
     _initialSessionFuture = checkInitialSession();
+    return const AuthState();
   }
 
   /// Completes when the one-time initial session restoration has finished.
@@ -315,7 +327,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _initialSessionFuture;
     state = state.copyWith(isLoading: true, clearLoginError: true);
     try {
-      final googleAuth = _googleAuthService ?? GoogleAuthService();
+      final googleAuth = _googleAuthService;
       final authResult = await googleAuth.authenticateWithGoogle();
 
       if (authResult.isCancelled) {
@@ -382,7 +394,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _initialSessionFuture;
     state = state.copyWith(isLoading: true, clearLoginError: true);
     try {
-      final appleAuth = _appleAuthService ?? AppleAuthService();
+      final appleAuth = _appleAuthService;
       final authResult = await appleAuth.authenticateWithApple();
 
       if (authResult.isCancelled) {
@@ -434,12 +446,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   void _clearSessionState([String? errorMsg]) {
-    if (_ref != null) {
-      try {
-        _ref.invalidate(activeProfileProvider);
-        _ref.invalidate(profilesListProvider);
-      } catch (_) {}
-    }
+    try {
+      ref.invalidate(activeProfileProvider);
+      ref.invalidate(profilesListProvider);
+    } catch (_) {}
     state = AuthState(
       isLoading: false,
       isAuthenticated: false,
@@ -453,9 +463,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (state.isLoading && !state.isAuthenticated) return;
     state = state.copyWith(isLoading: true);
     try {
-      if (_googleAuthService != null) {
-        await _googleAuthService.signOut();
-      }
+      await _googleAuthService.signOut();
       await _repository.signOut();
     } finally {
       _clearSessionState();

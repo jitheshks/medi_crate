@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/misc.dart';
+import '../../../../core/providers/mutable_state_notifier.dart';
 
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../doctors/presentation/providers/doctors_providers.dart';
@@ -14,23 +14,28 @@ import 'consultation_providers.dart';
 import '../../../settings/presentation/providers/settings_providers.dart';
 
 // Form state providers for New/Edit Consultation
-final selectedDoctorProvider = StateProvider<String?>((ref) => null);
-final selectedDoctorIdProvider = StateProvider<String?>((ref) => null);
-final selectedDoctorSpecialtyProvider = StateProvider<String?>((ref) => null);
-final selectedHospitalProvider = StateProvider<String?>((ref) => null);
-final selectedHospitalIdProvider = StateProvider<String?>((ref) => null);
-final selectedDepartmentProvider = StateProvider<String?>((ref) => null);
-final selectedDepartmentIdProvider = StateProvider<String?>((ref) => null);
-final selectedAppointmentIdProvider = StateProvider<String?>((ref) => null);
-final visitDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
-final visitTimeProvider = StateProvider<TimeOfDay>((ref) => TimeOfDay.now());
-final isFollowUpEnabledProvider = StateProvider<bool>((ref) => false);
-final followUpDateProvider = StateProvider<DateTime?>((ref) => null);
-final followUpTimeProvider = StateProvider<TimeOfDay?>((ref) => null);
-final followUpReminderProvider = StateProvider<bool>((ref) => true);
-final selectedCurrencyProvider = StateProvider<String?>((ref) => null);
+final selectedDoctorProvider = mutableStateProvider<String?>(null);
+final selectedDoctorIdProvider = mutableStateProvider<String?>(null);
+final selectedDoctorSpecialtyProvider =
+    mutableStateProvider<String?>(null);
+final selectedHospitalProvider = mutableStateProvider<String?>(null);
+final selectedHospitalIdProvider = mutableStateProvider<String?>(null);
+final selectedDepartmentProvider = mutableStateProvider<String?>(null);
+final selectedDepartmentIdProvider =
+    mutableStateProvider<String?>(null);
+final selectedAppointmentIdProvider =
+    mutableStateProvider<String?>(null);
+final visitDateProvider =
+    mutableStateProvider<DateTime>(DateTime.now());
+final visitTimeProvider =
+    mutableStateProvider<TimeOfDay>(TimeOfDay.now());
+final isFollowUpEnabledProvider = mutableStateProvider<bool>(false);
+final followUpDateProvider = mutableStateProvider<DateTime?>(null);
+final followUpTimeProvider = mutableStateProvider<TimeOfDay?>(null);
+final followUpReminderProvider = mutableStateProvider<bool>(true);
+final selectedCurrencyProvider = mutableStateProvider<String?>(null);
 final consultationAttachmentsProvider =
-    StateProvider<List<ConsultationAttachment>>((ref) => const []);
+    mutableStateProvider<List<ConsultationAttachment>>(const []);
 
 /// Signature of a Riverpod provider reader function (shared by WidgetRef and ProviderContainer).
 typedef ProviderReader = T Function<T>(ProviderListenable<T>);

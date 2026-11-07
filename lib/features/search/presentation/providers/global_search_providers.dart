@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import '../../../../core/providers/mutable_state_notifier.dart';
 
 import '../../../appointments/presentation/providers/appointment_providers.dart';
 import '../../../consultations/presentation/providers/consultation_providers.dart';
@@ -12,12 +12,11 @@ import '../../../vitals/presentation/providers/measurement_providers.dart';
 import '../../data/models/global_search_result.dart';
 
 /// Global Search query state provider.
-final globalSearchQueryProvider = StateProvider<String>((ref) => '');
+final globalSearchQueryProvider = mutableStateProvider<String>('');
 
 /// Category filter provider for global search (null represents 'ALL').
-final globalSearchCategoryFilterProvider = StateProvider<SearchEntityType?>(
-  (ref) => null,
-);
+final globalSearchCategoryFilterProvider =
+    mutableStateProvider<SearchEntityType?>(null);
 
 /// Calculates local relevance matching score for a search item.
 int _calculateRelevanceScore(

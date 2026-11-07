@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import '../../../../core/providers/mutable_state_notifier.dart';
 import 'package:medi_crate/core/utils/id_utils.dart';
 import 'package:medi_crate/features/appointments/data/models/appointment_model.dart';
 import 'package:medi_crate/features/appointments/presentation/providers/appointment_providers.dart';
@@ -105,10 +105,10 @@ class DoctorsListNotifier extends AsyncNotifier<List<DoctorModel>> {
   }
 }
 
-final doctorSearchQueryProvider = StateProvider<String>((ref) => '');
+final doctorSearchQueryProvider = mutableStateProvider<String>('');
 
 /// Sort option provider for doctors ('newest', 'oldest', 'alphabetical').
-final doctorSortProvider = StateProvider<String>((ref) => 'newest');
+final doctorSortProvider = mutableStateProvider<String>('newest');
 
 final filteredDoctorsProvider = Provider<AsyncValue<List<DoctorModel>>>((ref) {
   final doctorsAsync = ref.watch(doctorsListProvider);

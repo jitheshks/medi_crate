@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import '../../../../core/providers/mutable_state_notifier.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../home/presentation/providers/clinical_sync_coordinator.dart';
@@ -50,25 +50,22 @@ final doctorSummaryRepositoryProvider = Provider<DoctorSummaryRepository>((
   return DoctorSummaryRepository(hiveService: hive);
 });
 
-final doctorSummaryModeProvider = StateProvider<DoctorSummaryMode>(
-  (ref) => DoctorSummaryMode.dateRange,
+final doctorSummaryModeProvider =
+    mutableStateProvider<DoctorSummaryMode>(DoctorSummaryMode.dateRange);
+
+final doctorSummaryDatePresetProvider =
+    mutableStateProvider<DoctorSummaryDatePreset>(
+  DoctorSummaryDatePreset.allTime,
 );
 
-final doctorSummaryDatePresetProvider = StateProvider<DoctorSummaryDatePreset>(
-  (ref) => DoctorSummaryDatePreset.allTime,
-);
+final doctorSummaryCustomDateRangeProvider =
+    mutableStateProvider<DateTimeRange?>(null);
 
-final doctorSummaryCustomDateRangeProvider = StateProvider<DateTimeRange?>(
-  (ref) => null,
-);
+final doctorSummaryFocusedConsultationIdProvider =
+    mutableStateProvider<String?>(null);
 
-final doctorSummaryFocusedConsultationIdProvider = StateProvider<String?>(
-  (ref) => null,
-);
-
-final doctorSummarySelectedConsultationIdsProvider = StateProvider<Set<String>>(
-  (ref) => <String>{},
-);
+final doctorSummarySelectedConsultationIdsProvider =
+    mutableStateProvider<Set<String>>(<String>{});
 
 class DoctorSummarySelectedCategoriesNotifier
     extends Notifier<Set<DoctorSummaryCategory>> {

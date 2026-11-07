@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import '../../../../core/providers/mutable_state_notifier.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';
@@ -13,20 +13,22 @@ final timelineRepositoryProvider = Provider<TimelineRepository>((ref) {
 });
 
 /// Search query provider for Timeline.
-final timelineSearchProvider = StateProvider<String>((ref) => '');
+final timelineSearchProvider = mutableStateProvider<String>('');
 
 /// Category filter chip provider ('ALL', 'CONSULTATIONS', 'REPORTS', etc.).
-final timelineFilterProvider = StateProvider<String>((ref) => 'ALL');
+final timelineFilterProvider = mutableStateProvider<String>('ALL');
 
 /// Date range filter provider ('last30Days', 'last90Days', 'last6Months', 'lastYear', 'allTime', 'custom').
-final timelineDateRangeProvider = StateProvider<String>((ref) => 'last90Days');
+final timelineDateRangeProvider = mutableStateProvider<String>('last90Days');
 
 /// Custom date range providers for Timeline.
-final timelineCustomStartDateProvider = StateProvider<DateTime?>((ref) => null);
-final timelineCustomEndDateProvider = StateProvider<DateTime?>((ref) => null);
+final timelineCustomStartDateProvider =
+    mutableStateProvider<DateTime?>(null);
+final timelineCustomEndDateProvider =
+    mutableStateProvider<DateTime?>(null);
 
 /// Sort order provider ('newest', 'oldest').
-final timelineSortProvider = StateProvider<String>((ref) => 'newest');
+final timelineSortProvider = mutableStateProvider<String>('newest');
 
 /// Notifier managing active profile's aggregated timeline events.
 class TimelineEventsNotifier extends AsyncNotifier<List<TimelineEventModel>> {

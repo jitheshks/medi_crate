@@ -129,7 +129,7 @@ class SignUpScreen extends ConsumerWidget {
           onPressed: () => context.popOrGo(AppRoutes.login),
         ),
         title: Text(
-          'MediVault',
+          'MediCrate',
           style: AppTypography.h2.copyWith(color: colorScheme.onSurface),
         ),
         centerTitle: true,

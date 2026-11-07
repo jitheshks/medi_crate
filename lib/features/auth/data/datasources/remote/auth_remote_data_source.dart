@@ -47,7 +47,7 @@ class LoginResult {
       authData = null;
 }
 
-/// AuthRemoteDataSource connects to the MediVault Laravel REST API
+/// AuthRemoteDataSource connects to the MediCrate Laravel REST API
 /// and executes authentication endpoints A1 through A10.
 class AuthRemoteDataSource {
   final ApiClient _apiClient;

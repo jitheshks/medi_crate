@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// AppColorsDark defines the dark theme color palette for MediVault
+/// AppColorsDark defines the dark theme color palette for MediCrate
 /// as specified in Theme_Design_System.md §4.
 abstract class AppColorsDark {
   static const Color background = Color(0xFF0E1620);

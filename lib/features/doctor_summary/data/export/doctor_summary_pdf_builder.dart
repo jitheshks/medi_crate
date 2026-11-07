@@ -121,7 +121,7 @@ Future<Uint8List> buildDoctorSummaryPdfBytes(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                'MediVault Confidential Medical Summary',
+                'MediCrate Confidential Medical Summary',
                 style: const pw.TextStyle(
                   fontSize: 7.5,
                   color: PdfColors.grey600,
@@ -162,7 +162,7 @@ Future<Uint8List> buildDoctorSummaryPdfBytes(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(
-                  'MediVault - Doctor Summary',
+                  'MediCrate - Doctor Summary',
                   style: pw.TextStyle(
                     fontSize: 16,
                     fontWeight: pw.FontWeight.bold,
@@ -660,7 +660,7 @@ Future<Uint8List> buildDoctorSummaryPdfBytes(
               ),
             ),
             child: pw.Text(
-              'Disclaimer: For patient reference only. Not an official medical diagnosis. Confidentially generated client-side from MediVault.',
+              'Disclaimer: For patient reference only. Not an official medical diagnosis. Confidentially generated client-side from MediCrate.',
               style: const pw.TextStyle(
                 fontSize: 7.5,
                 color: PdfColors.grey700,

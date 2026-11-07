@@ -20,7 +20,7 @@ import '../widgets/detail/appointment_visit_details_card.dart';
 
 /// AppointmentDetailScreen displays appointment details, doctor/hospital info,
 /// date & time, reminders, status-driven actions, and edit/delete capabilities
-/// using the shared MediVault detail framework.
+/// using the shared MediCrate detail framework.
 class AppointmentDetailScreen extends ConsumerWidget {
   final String appointmentId;
 

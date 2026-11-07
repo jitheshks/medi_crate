@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
-/// Supported authentication providers in MediVault.
+/// Supported authentication providers in MediCrate.
 enum AuthProviderType { emailPassword, google, apple }
 
 extension AuthProviderTypeX on AuthProviderType {
@@ -20,7 +20,7 @@ extension AuthProviderTypeX on AuthProviderType {
   }
 }
 
-/// UserModel represents the authenticated user profile in MediVault.
+/// UserModel represents the authenticated user profile in MediCrate.
 class UserModel {
   final String id;
   final String email;

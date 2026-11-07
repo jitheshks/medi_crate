@@ -5,7 +5,7 @@ import 'api_logger.dart';
 import 'dio_interceptor.dart';
 import 'http_client_factory.dart';
 
-/// ApiClient configures the centralized Dio client for MediVault REST API operations
+/// ApiClient configures the centralized Dio client for MediCrate REST API operations
 /// with automated API Key injection, Bearer Token authentication, and secure logging.
 class ApiClient {
   late final Dio _dio;

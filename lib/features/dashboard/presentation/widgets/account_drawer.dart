@@ -162,7 +162,7 @@ class AccountDrawer extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12, top: 4),
                   child: Text(
-                    'MediVault v1.0.0 · End-to-End Encrypted',
+                    'MediCrate v1.0.0 · End-to-End Encrypted',
                     style: AppTypography.caption.copyWith(
                       color: colorScheme.onSurfaceVariant.withValues(
                         alpha: 0.7,

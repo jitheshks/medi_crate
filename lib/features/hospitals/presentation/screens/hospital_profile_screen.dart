@@ -18,7 +18,7 @@ import '../providers/hospitals_providers.dart';
 import '../widgets/hospital_profile_linked_sections.dart';
 
 /// HospitalProfileScreen displays facility details and derived associated doctors,
-/// consultations, appointments, reports, and actions using the shared MediVault detail framework.
+/// consultations, appointments, reports, and actions using the shared MediCrate detail framework.
 class HospitalProfileScreen extends ConsumerStatefulWidget {
   final String hospitalId;
 

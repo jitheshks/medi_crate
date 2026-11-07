@@ -44,7 +44,7 @@ class _DoctorSummaryBottomBarState
       );
       final fullName = widget.profile?.fullName?.toString() ?? 'Patient';
       final filename =
-          'MediVault_Doctor_Summary_${fullName.replaceAll(" ", "_")}.pdf';
+          'MediCrate_Doctor_Summary_${fullName.replaceAll(" ", "_")}.pdf';
       if (action == _DoctorSummaryExportAction.print) {
         await exportService.previewOrPrintPdf(pdfBytes, filename);
       } else if (action == _DoctorSummaryExportAction.share) {

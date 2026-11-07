@@ -1,6 +1,6 @@
 /// Shared helper for Server -> Hive list pulls (D1/H1/C1/AP1/R1/M1/V1).
 ///
-/// The authoritative MediVault API documentation (`MediVault_API_Documentation_v1`)
+/// The authoritative MediCrate API documentation (`MediCrate_API_Documentation_v1`)
 /// exposes only a `limit` query parameter for these seven clinical list
 /// endpoints (no `page`/`offset`/`cursor` — only `/timeline` documents `page`)
 /// and reports the full dataset size in the `data.total` envelope field.

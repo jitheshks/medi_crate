@@ -2,7 +2,7 @@ import 'dart:io';
 import '../../../../features/consultations/data/models/consultation_attachment.dart';
 import '../../../../features/reports/data/models/report_model.dart';
 
-/// Unified immutable model representing a file attachment across any MediVault module
+/// Unified immutable model representing a file attachment across any MediCrate module
 /// (Reports, Consultations, Prescriptions, etc.).
 class AttachmentItem {
   final String id;

@@ -367,7 +367,7 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
                     ),
                   ),
                   subtitle: Text(
-                    'Default profile loaded upon opening MediVault',
+                    'Default profile loaded upon opening MediCrate',
                     style: AppTypography.caption.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),

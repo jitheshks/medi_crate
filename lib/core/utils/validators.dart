@@ -1,5 +1,5 @@
 /// Validators provides standard form input validation rules matching
-/// the MediVault Backend API Contract v1.0 specifications.
+/// the MediCrate Backend API Contract v1.0 specifications.
 abstract class Validators {
   /// Validates standard user full name (required, min 2 chars, letters only/allowed).
   static String? validateName(String? value) {

@@ -28,7 +28,7 @@ abstract class ApiConstants {
 
   /// First-batch `limit` used by Server -> Hive pulls (D1/H1/C1/AP1/R1/M1/V1).
   ///
-  /// The MediVault list API exposes only a `limit` query parameter (no
+  /// The MediCrate list API exposes only a `limit` query parameter (no
   /// `page`/`offset`/`cursor`) plus a `data.total` count. Pulls request this
   /// many rows first; if `total` exceeds it, a single follow-up request is
   /// issued with `limit == total`. Chosen high enough to cover realistic

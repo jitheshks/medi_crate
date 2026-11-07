@@ -1,6 +1,6 @@
 import '../../../../core/constants/app_currency.dart';
 
-/// SettingsModel represents all customizable user preferences in MediVault.
+/// SettingsModel represents all customizable user preferences in MediCrate.
 class SettingsModel {
   final bool biometricsEnabled;
   final bool analyticsEnabled;

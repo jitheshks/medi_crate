@@ -286,7 +286,7 @@ class _DoctorSummaryCategorySectionState
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Disclaimer: For reference only. Not a medical diagnosis. Confidentially generated client-side from MediVault.',
+                  'Disclaimer: For reference only. Not a medical diagnosis. Confidentially generated client-side from MediCrate.',
                   style: AppTypography.caption.copyWith(
                     color: colorScheme.onSurfaceVariant,
                     fontSize: 11,

@@ -97,7 +97,7 @@ class SignInScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          'Welcome back to MediVault',
+                          'Welcome back to MediCrate',
                           style: AppTypography.h1.copyWith(
                             color: colorScheme.onSurface,
                           ),
@@ -167,7 +167,7 @@ class SignInScreen extends ConsumerWidget {
                           alignment: WrapAlignment.center,
                           children: [
                             Text(
-                              'New to MediVault? ',
+                              'New to MediCrate? ',
                               style: AppTypography.bodyMedium.copyWith(
                                 color: colorScheme.onSurface,
                               ),

@@ -21,7 +21,7 @@ class AboutSettingsScreen extends ConsumerWidget {
     );
 
     return SettingsSubScaffold(
-      title: 'About MediVault',
+      title: 'About MediCrate',
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -43,7 +43,7 @@ class AboutSettingsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'MediVault',
+                  'MediCrate',
                   style: AppTypography.h1.copyWith(
                     color: colorScheme.onSurface,
                   ),

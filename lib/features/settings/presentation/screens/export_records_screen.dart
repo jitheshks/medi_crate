@@ -55,7 +55,7 @@ class _ExportRecordsScreenState extends ConsumerState<ExportRecordsScreen> {
 
       await exportService.previewOrPrintPdf(
         pdfBytes,
-        'MediVault_Health_Export.pdf',
+        'MediCrate_Health_Export.pdf',
       );
     } catch (e) {
       if (mounted) {

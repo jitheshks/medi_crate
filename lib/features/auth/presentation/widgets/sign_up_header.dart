@@ -12,7 +12,7 @@ class SignUpHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Create your MediVault account',
+          'Create your MediCrate account',
           style: AppTypography.h1.copyWith(color: colorScheme.onSurface),
         ),
         const SizedBox(height: 6),

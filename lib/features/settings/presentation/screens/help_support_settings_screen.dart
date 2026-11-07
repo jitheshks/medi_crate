@@ -13,8 +13,8 @@ class HelpSupportSettingsScreen extends StatelessWidget {
   Future<void> _launchSupportEmail(BuildContext context) async {
     final Uri emailUri = Uri(
       scheme: 'mailto',
-      path: 'support@medivault.app',
-      queryParameters: {'subject': 'MediVault Support Inquiry'},
+      path: 'support@medicrate.app',
+      queryParameters: {'subject': 'MediCrate Support Inquiry'},
     );
     try {
       if (await canLaunchUrl(emailUri)) {
@@ -22,13 +22,13 @@ class HelpSupportSettingsScreen extends StatelessWidget {
       } else {
         if (context.mounted) {
           context.showSnackBar(
-            'Could not launch email app. Contact support@medivault.app',
+            'Could not launch email app. Contact support@medicrate.app',
           );
         }
       }
     } catch (_) {
       if (context.mounted) {
-        context.showSnackBar('Contact support@medivault.app');
+        context.showSnackBar('Contact support@medicrate.app');
       }
     }
   }
@@ -37,9 +37,9 @@ class HelpSupportSettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final faqs = [
       {
-        'q': 'Is my medical data safe in MediVault?',
+        'q': 'Is my medical data safe in MediCrate?',
         'a':
-            'Yes. All health records are stored locally in Hive encrypted storage on your device. MediVault operates on an offline-first architecture.',
+            'Yes. All health records are stored locally in Hive encrypted storage on your device. MediCrate operates on an offline-first architecture.',
       },
       {
         'q': 'How does offline synchronization work?',
@@ -54,7 +54,7 @@ class HelpSupportSettingsScreen extends StatelessWidget {
       {
         'q': 'What platforms are supported?',
         'a':
-            'MediVault runs natively across Android, iOS, Windows, macOS, Linux, and modern Web browsers with responsive layouts.',
+            'MediCrate runs natively across Android, iOS, Windows, macOS, Linux, and modern Web browsers with responsive layouts.',
       },
     ];
 
@@ -112,7 +112,7 @@ class HelpSupportSettingsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     PrimaryButton(
-                      text: 'Email Support (support@medivault.app)',
+                      text: 'Email Support (support@medicrate.app)',
                       onPressed: () => _launchSupportEmail(context),
                     ),
                   ],

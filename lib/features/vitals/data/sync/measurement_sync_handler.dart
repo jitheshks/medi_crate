@@ -8,7 +8,7 @@ import '../datasources/remote/vitals_remote_data_source.dart';
 import '../models/measurement_model.dart';
 
 /// MeasurementSyncHandler manages the serialization, API dispatch, and Hive ID
-/// reconciliation for Vital Measurements in MediVault (V1 - V5).
+/// reconciliation for Vital Measurements in MediCrate (V1 - V5).
 class MeasurementSyncHandler {
   MeasurementSyncHandler._();
 

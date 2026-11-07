@@ -53,7 +53,7 @@ class HospitalModel {
     'created_at': createdAt?.toIso8601String(),
   };
 
-  /// Serializes model to match the MediVault REST API contract for POST /hospitals & POST /hospitals/{id} (H2 / H4)
+  /// Serializes model to match the MediCrate REST API contract for POST /hospitals & POST /hospitals/{id} (H2 / H4)
   Map<String, dynamic> toApiJson() {
     final cleanProfileId =
         int.tryParse(IdUtils.unprefix(profileId)) ?? profileId;

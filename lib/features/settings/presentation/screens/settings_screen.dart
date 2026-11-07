@@ -115,7 +115,7 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   _buildGroupHeader(context, 'INFORMATION'),
                   const SettingsTile(
-                    title: 'About MediVault',
+                    title: 'About MediCrate',
                     subtitle: 'Version details & legal terms',
                     icon: Icons.info_outline,
                     route: SettingsSubRoute.about,
@@ -131,7 +131,7 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   Center(
                     child: Text(
-                      'MediVault v1.0.0 (Build 1) · Encrypted Storage',
+                      'MediCrate v1.0.0 (Build 1) · Encrypted Storage',
                       style: AppTypography.caption.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),

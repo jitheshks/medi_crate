@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// AppIcons provides standard Material and Cupertino icon definitions for MediVault,
+/// AppIcons provides standard Material and Cupertino icon definitions for MediCrate,
 /// avoiding third-party IconData inheritance incompatibilities.
 abstract class AppIcons {
   static const IconData home = Icons.home_outlined; // or Icons.home

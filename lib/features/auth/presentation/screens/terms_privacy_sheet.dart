@@ -40,7 +40,7 @@ class _TermsPrivacySheetState extends State<TermsPrivacySheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'MediVault prioritizes your health record privacy. By using MediVault, you acknowledge that your health data is encrypted and stored locally on your device.',
+            'MediCrate prioritizes your health record privacy. By using MediCrate, you acknowledge that your health data is encrypted and stored locally on your device.',
             style: AppTypography.subtitle.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),

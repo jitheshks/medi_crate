@@ -14,7 +14,7 @@ import '../../data/models/medicine_model.dart';
 import '../providers/medicine_providers.dart';
 
 /// MedicineDetailScreen displays medicine schedule, dosages, linked consultations,
-/// notes, and management actions using the shared MediVault detail framework.
+/// notes, and management actions using the shared MediCrate detail framework.
 class MedicineDetailScreen extends ConsumerWidget {
   final String medicineId;
 

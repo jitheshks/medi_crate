@@ -34,7 +34,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 context,
                 ref,
                 title: 'Light',
-                subtitle: 'Calm off-white MediVault standard theme',
+                subtitle: 'Calm off-white MediCrate standard theme',
                 value: 'light',
                 selectedValue: settings.themeMode,
               ),

@@ -8,7 +8,7 @@ import '../datasources/remote/appointment_remote_data_source.dart';
 import '../models/appointment_model.dart';
 
 /// AppointmentSyncHandler handles preparation, sanitization, and remote dispatch
-/// for Appointment synchronization in MediVault (AP1 - AP5).
+/// for Appointment synchronization in MediCrate (AP1 - AP5).
 class AppointmentSyncHandler {
   AppointmentSyncHandler._();
 

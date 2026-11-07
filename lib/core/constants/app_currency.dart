@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// Supported currencies and currency metadata in MediVault.
+/// Supported currencies and currency metadata in MediCrate.
 class AppCurrency {
   final String code;
   final String symbol;

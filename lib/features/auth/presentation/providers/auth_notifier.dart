@@ -309,7 +309,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Initiates device-level Google Sign-In and exchanges Firebase ID token with MediVault A8 endpoint.
+  /// Initiates device-level Google Sign-In and exchanges Firebase ID token with MediCrate A8 endpoint.
   Future<bool> signInWithGoogle() async {
     await _initialSessionFuture;
     state = state.copyWith(isLoading: true, clearLoginError: true);
@@ -375,7 +375,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Initiates device-level Apple Sign-In and exchanges Firebase ID token
-  /// with MediVault A9 endpoint — mirrors signInWithGoogle().
+  /// with MediCrate A9 endpoint — mirrors signInWithGoogle().
   Future<bool> signInWithApple() async {
     debugPrint('[AppleAuth] AuthNotifier.signInWithApple() invoked');
     await _initialSessionFuture;

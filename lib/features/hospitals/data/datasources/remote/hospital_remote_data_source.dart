@@ -4,7 +4,7 @@ import '../../../../../core/api/api_constants.dart';
 import '../../../../../core/api/api_error_parser.dart';
 import '../../../../../core/api/list_pull_support.dart';
 
-/// HospitalRemoteDataSource handles HTTP interactions with the MediVault Backend
+/// HospitalRemoteDataSource handles HTTP interactions with the MediCrate Backend
 /// Hospital / Clinic Endpoints (H1 - H5).
 class HospitalRemoteDataSource {
   final ApiClient apiClient;

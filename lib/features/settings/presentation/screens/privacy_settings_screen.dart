@@ -43,7 +43,7 @@ class PrivacySettingsScreen extends ConsumerWidget {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(
-                    'Your health records are stored locally and encrypted on your device. MediVault never sells or shares your personal medical data.',
+                    'Your health records are stored locally and encrypted on your device. MediCrate never sells or shares your personal medical data.',
                     style: AppTypography.caption.copyWith(
                       color: colorScheme.onSurface,
                     ),
@@ -60,7 +60,7 @@ class PrivacySettingsScreen extends ConsumerWidget {
                 icon: Icons.analytics_outlined,
                 title: 'Anonymous Analytics',
                 subtitle:
-                    'Send aggregated usage stats to help improve MediVault',
+                    'Send aggregated usage stats to help improve MediCrate',
                 value: settings.analyticsEnabled,
                 onChanged: (val) {
                   ref

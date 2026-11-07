@@ -77,7 +77,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 const Hero(tag: 'app_logo', child: PulsingVaultLogo()),
                 const SizedBox(height: 24),
                 Text(
-                  'MediVault',
+                  'MediCrate',
                   style: AppTypography.display.copyWith(
                     color: Colors.white,
                     fontSize: 32,

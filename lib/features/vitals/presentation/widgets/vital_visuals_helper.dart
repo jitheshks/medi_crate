@@ -77,7 +77,7 @@ VitalVisuals getVitalVisuals(BuildContext context, String type) {
   }
 }
 
-/// Status badge colors using MediVault semantic theme colors
+/// Status badge colors using MediCrate semantic theme colors
 StatusVisuals getStatusVisuals(BuildContext context, String status) {
   final semantic = context.semanticColors;
   final upper = status.toUpperCase();

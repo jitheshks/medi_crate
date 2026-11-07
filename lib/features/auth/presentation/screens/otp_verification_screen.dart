@@ -247,7 +247,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
           },
         ),
         title: Text(
-          'MediVault',
+          'MediCrate',
           style: AppTypography.h2.copyWith(color: colorScheme.onSurface),
         ),
         centerTitle: true,

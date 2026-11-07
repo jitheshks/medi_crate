@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-/// Supported notification categories in MediVault.
+/// Supported notification categories in MediCrate.
 enum NotificationType { appointment, medicine, measurement, report }
 
-/// NotificationModel represents a profile-scoped notification record in MediVault.
+/// NotificationModel represents a profile-scoped notification record in MediCrate.
 @immutable
 class NotificationModel {
   final String id;

@@ -1,6 +1,6 @@
 library;
 
-/// Request models for MediVault Authentication APIs (A1–A9).
+/// Request models for MediCrate Authentication APIs (A1–A9).
 /// All field names strictly conform to the Backend API Contract v1.0.
 
 /// A1: Sign Up Request DTO

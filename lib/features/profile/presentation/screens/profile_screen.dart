@@ -12,7 +12,7 @@ import '../widgets/profile_personal_info_section.dart';
 import '../widgets/profile_save_helper.dart';
 
 /// ProfileScreen displays and edits personal health profile details
-/// according to MediVault UI specification.
+/// according to MediCrate UI specification.
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 

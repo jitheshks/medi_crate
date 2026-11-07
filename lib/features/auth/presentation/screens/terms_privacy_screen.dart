@@ -43,7 +43,7 @@ class TermsPrivacyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              '1. Patient Ownership\nAll health records, consultations, doctor notes, and medical measurements entered into MediVault remain exclusively patient-owned. MediVault does not sell, market, or share health data with third-party insurers or data brokers.\n\n'
+              '1. Patient Ownership\nAll health records, consultations, doctor notes, and medical measurements entered into MediCrate remain exclusively patient-owned. MediCrate does not sell, market, or share health data with third-party insurers or data brokers.\n\n'
               '2. Local Encryption & Syncing\nYour health vault data is saved locally using high-performance Hive database storage. When online, your records are automatically synchronized with our encrypted backend API service.\n\n'
               '3. Account Security\nStrong encryption and authentication safeguard your vault. You can manage access settings at any time from the Account Settings screen.',
               style: AppTypography.bodyMedium.copyWith(

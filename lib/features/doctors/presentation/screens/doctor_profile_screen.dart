@@ -18,7 +18,7 @@ import '../widgets/doctor_profile_linked_sections.dart';
 
 /// DoctorProfileScreen displays complete doctor details, contact info,
 /// linked hospitals, clinical notes, matching consultations, appointments, reports,
-/// and actions using the shared MediVault detail framework.
+/// and actions using the shared MediCrate detail framework.
 class DoctorProfileScreen extends ConsumerStatefulWidget {
   final String doctorId;
 

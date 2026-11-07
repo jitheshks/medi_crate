@@ -8,7 +8,7 @@ import 'hive_service.dart';
 /// AttachmentCleanupHelper manages safe, ownership-verified deletion of local attachment files.
 ///
 /// A physical file is safely deleted ONLY if:
-/// 1. The path resides strictly within the canonical MediVault-managed profiles root directory
+/// 1. The path resides strictly within the canonical MediCrate-managed profiles root directory
 ///    (e.g., `<appDocumentsDir>/profiles/...`), rejecting relative paths, root paths, external storage,
 ///    and path traversal escapes.
 /// 2. The physical file exists on the filesystem.
@@ -39,7 +39,7 @@ class AttachmentCleanupHelper {
     }
   }
 
-  /// Validates whether [filePath] resides strictly within MediVault's managed profiles root.
+  /// Validates whether [filePath] resides strictly within MediCrate's managed profiles root.
   ///
   /// Rejects:
   /// - null or empty paths

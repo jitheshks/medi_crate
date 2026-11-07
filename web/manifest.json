@@ -1,11 +1,11 @@
 {
-    "name": "medi_crate",
-    "short_name": "medi_crate",
+    "name": "MediCrate",
+    "short_name": "MediCrate",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Secure personal health record management with MediCrate.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

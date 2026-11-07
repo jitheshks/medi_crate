@@ -1,6 +1,6 @@
 import '../../../../core/utils/id_utils.dart';
 
-/// AppointmentModel represents a doctor appointment record in MediVault.
+/// AppointmentModel represents a doctor appointment record in MediCrate.
 class AppointmentModel {
   final String id;
   final String profileId;

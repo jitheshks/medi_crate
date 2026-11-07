@@ -18,7 +18,7 @@ import '../widgets/report_type_badge.dart';
 
 /// ViewReportScreen renders complete details of a single report, including linked consultation,
 /// doctor & hospital details, notes, file attachments, associated expenses, and edit/delete actions
-/// using the shared MediVault detail framework.
+/// using the shared MediCrate detail framework.
 class ViewReportScreen extends ConsumerWidget {
   final String reportId;
 

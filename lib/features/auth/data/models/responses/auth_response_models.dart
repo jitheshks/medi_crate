@@ -1,6 +1,6 @@
 library;
 
-/// Response models for MediVault Authentication APIs (A1–A10).
+/// Response models for MediCrate Authentication APIs (A1–A10).
 /// Strictly mapped from the Backend API Contract v1.0 specifications.
 
 /// Standard Top-Level API Envelope wrapper

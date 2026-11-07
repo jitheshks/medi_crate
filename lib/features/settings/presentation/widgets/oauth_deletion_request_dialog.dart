@@ -148,7 +148,7 @@ class OAuthDeletionRequestDialog extends StatelessWidget {
             Text(
               '• Opening the request form will not delete your account immediately.\n'
               '• An administrator will process your request and permanently delete your server data and associated records.\n'
-              '• You can continue using MediVault until your request is completed, or choose to sign out now.',
+              '• You can continue using MediCrate until your request is completed, or choose to sign out now.',
               style: AppTypography.caption.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 height: 1.4,

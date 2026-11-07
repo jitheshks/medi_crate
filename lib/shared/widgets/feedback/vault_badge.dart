@@ -3,11 +3,11 @@ import '../../../core/constants/app_icons.dart';
 import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_typography.dart';
 
-/// VaultBadge renders a security status badge indicator.
-class VaultBadge extends StatelessWidget {
+/// CrateBadge renders a security status badge indicator for MediCrate.
+class CrateBadge extends StatelessWidget {
   final String label;
 
-  const VaultBadge({super.key, this.label = 'Encrypted'});
+  const CrateBadge({super.key, this.label = 'Encrypted'});
 
   @override
   Widget build(BuildContext context) {
@@ -35,3 +35,6 @@ class VaultBadge extends StatelessWidget {
     );
   }
 }
+
+/// Backwards-compatible alias for CrateBadge.
+typedef VaultBadge = CrateBadge;

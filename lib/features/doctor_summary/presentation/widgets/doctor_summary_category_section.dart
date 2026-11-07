@@ -4,9 +4,10 @@ import '../../../../core/constants/app_typography.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../data/models/doctor_summary_model.dart';
 import '../providers/doctor_summary_providers.dart';
+import 'doctor_summary_category_tile.dart';
 
 /// Renders the Customize Content accordion with 7 clinical categories and disclaimer banner.
-class DoctorSummaryCategorySection extends StatefulWidget {
+class DoctorSummaryCategorySection extends StatelessWidget {
   final DoctorSummaryModel combinedSummary;
   final Set<DoctorSummaryCategory> selectedCategories;
   final Set<String> deselectedIds;
@@ -34,16 +35,7 @@ class DoctorSummaryCategorySection extends StatefulWidget {
     required this.onToggleItem,
   });
 
-  @override
-  State<DoctorSummaryCategorySection> createState() =>
-      _DoctorSummaryCategorySectionState();
-}
-
-class _DoctorSummaryCategorySectionState
-    extends State<DoctorSummaryCategorySection> {
-  final Set<DoctorSummaryCategory> _expandedCategories = {};
-
-  String _formatDate(dynamic rawDate) {
+  static String _formatDate(dynamic rawDate) {
     if (rawDate == null) return '';
     if (rawDate is DateTime) {
       return DateFormatter.formatShortDate(rawDate);
@@ -58,9 +50,6 @@ class _DoctorSummaryCategorySectionState
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final combinedSummary = widget.combinedSummary;
-    final selectedCategories = widget.selectedCategories;
-    final deselectedIds = widget.deselectedIds;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,7 +73,7 @@ class _DoctorSummaryCategorySectionState
               spacing: 4,
               children: [
                 TextButton(
-                  onPressed: widget.onSelectAll,
+                  onPressed: onSelectAll,
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -92,7 +81,7 @@ class _DoctorSummaryCategorySectionState
                   child: const Text('Select All'),
                 ),
                 TextButton(
-                  onPressed: widget.onClearAll,
+                  onPressed: onClearAll,
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -122,13 +111,15 @@ class _DoctorSummaryCategorySectionState
           ),
           child: Column(
             children: [
-              _buildCategoryRow(
-                context: context,
+              DoctorSummaryCategoryTile(
                 category: DoctorSummaryCategory.medications,
                 items: combinedSummary.medicines,
                 isLast: false,
-                selectedCategories: selectedCategories,
+                isCategorySelected:
+                    selectedCategories.contains(DoctorSummaryCategory.medications),
                 deselectedIds: deselectedIds,
+                onToggleCategory: onToggleCategory,
+                onToggleItem: onToggleItem,
                 titleBuilder: (m) => (m['name'] ??
                         m['medication_name'] ??
                         'Medication')
@@ -143,13 +134,15 @@ class _DoctorSummaryCategorySectionState
                     ),
                 ].where((s) => s != null && s.isNotEmpty).join(' · '),
               ),
-              _buildCategoryRow(
-                context: context,
+              DoctorSummaryCategoryTile(
                 category: DoctorSummaryCategory.consultations,
                 items: combinedSummary.consultations,
                 isLast: false,
-                selectedCategories: selectedCategories,
+                isCategorySelected: selectedCategories
+                    .contains(DoctorSummaryCategory.consultations),
                 deselectedIds: deselectedIds,
+                onToggleCategory: onToggleCategory,
+                onToggleItem: onToggleItem,
                 titleBuilder: (c) {
                   final doc = c['doctor_name'] ?? 'Doctor';
                   final spec = c['specialization'] ??
@@ -169,13 +162,15 @@ class _DoctorSummaryCategorySectionState
                     (c['diagnosis'] ?? c['reason_for_visit'])?.toString(),
                 ].where((s) => s != null && s.isNotEmpty).join(' · '),
               ),
-              _buildCategoryRow(
-                context: context,
+              DoctorSummaryCategoryTile(
                 category: DoctorSummaryCategory.reports,
                 items: combinedSummary.reports,
                 isLast: false,
-                selectedCategories: selectedCategories,
+                isCategorySelected:
+                    selectedCategories.contains(DoctorSummaryCategory.reports),
                 deselectedIds: deselectedIds,
+                onToggleCategory: onToggleCategory,
+                onToggleItem: onToggleItem,
                 titleBuilder: (r) => (r['test_name'] ??
                         r['title'] ??
                         'Medical Report')
@@ -191,13 +186,15 @@ class _DoctorSummaryCategorySectionState
                     'Patient-entered note: ${r['notes']}',
                 ].where((s) => s != null && s.isNotEmpty).join(' · '),
               ),
-              _buildCategoryRow(
-                context: context,
+              DoctorSummaryCategoryTile(
                 category: DoctorSummaryCategory.appointments,
                 items: combinedSummary.appointments,
                 isLast: false,
-                selectedCategories: selectedCategories,
+                isCategorySelected: selectedCategories
+                    .contains(DoctorSummaryCategory.appointments),
                 deselectedIds: deselectedIds,
+                onToggleCategory: onToggleCategory,
+                onToggleItem: onToggleItem,
                 titleBuilder: (a) {
                   final doc =
                       a['doctor_name'] ?? a['doctor'] ?? 'Doctor';
@@ -213,13 +210,15 @@ class _DoctorSummaryCategorySectionState
                   if (a['department'] != null) a['department']?.toString(),
                 ].where((s) => s != null && s.isNotEmpty).join(' · '),
               ),
-              _buildCategoryRow(
-                context: context,
+              DoctorSummaryCategoryTile(
                 category: DoctorSummaryCategory.vitals,
                 items: combinedSummary.vitals,
                 isLast: false,
-                selectedCategories: selectedCategories,
+                isCategorySelected:
+                    selectedCategories.contains(DoctorSummaryCategory.vitals),
                 deselectedIds: deselectedIds,
+                onToggleCategory: onToggleCategory,
+                onToggleItem: onToggleItem,
                 titleBuilder: (v) {
                   final type = v['title'] ?? v['type'] ?? 'Vital';
                   final val = v['value'] ?? v['reading'] ?? '--';
@@ -231,13 +230,15 @@ class _DoctorSummaryCategorySectionState
                   v['recorded_at'] ?? v['date'] ?? v['created_at'],
                 ),
               ),
-              _buildCategoryRow(
-                context: context,
+              DoctorSummaryCategoryTile(
                 category: DoctorSummaryCategory.doctors,
                 items: combinedSummary.doctors,
                 isLast: false,
-                selectedCategories: selectedCategories,
+                isCategorySelected:
+                    selectedCategories.contains(DoctorSummaryCategory.doctors),
                 deselectedIds: deselectedIds,
+                onToggleCategory: onToggleCategory,
+                onToggleItem: onToggleItem,
                 titleBuilder: (d) =>
                     (d['name'] ?? 'Doctor').toString(),
                 subtitleBuilder: (d) => [
@@ -247,13 +248,15 @@ class _DoctorSummaryCategorySectionState
                     (d['hospital'] ?? d['clinic'])?.toString(),
                 ].where((s) => s != null && s.isNotEmpty).join(' · '),
               ),
-              _buildCategoryRow(
-                context: context,
+              DoctorSummaryCategoryTile(
                 category: DoctorSummaryCategory.hospitals,
                 items: combinedSummary.hospitals,
                 isLast: true,
-                selectedCategories: selectedCategories,
+                isCategorySelected: selectedCategories
+                    .contains(DoctorSummaryCategory.hospitals),
                 deselectedIds: deselectedIds,
+                onToggleCategory: onToggleCategory,
+                onToggleItem: onToggleItem,
                 titleBuilder: (h) =>
                     (h['name'] ?? 'Hospital / Clinic').toString(),
                 subtitleBuilder: (h) =>
@@ -297,146 +300,6 @@ class _DoctorSummaryCategorySectionState
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-      ],
-    );
-  }
-
-  Widget _buildCategoryRow({
-    required BuildContext context,
-    required DoctorSummaryCategory category,
-    required List<Map<String, dynamic>> items,
-    required bool isLast,
-    required Set<DoctorSummaryCategory> selectedCategories,
-    required Set<String> deselectedIds,
-    required String Function(Map<String, dynamic>) titleBuilder,
-    required String Function(Map<String, dynamic>) subtitleBuilder,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isCategorySelected = selectedCategories.contains(category);
-
-    final categoryItemIds =
-        items.map((i) => getSummaryItemId(i, category)).toSet();
-    final deselectedCount =
-        categoryItemIds.intersection(deselectedIds).length;
-
-    bool? tristateVal;
-    if (!isCategorySelected) {
-      tristateVal = false;
-    } else if (items.isEmpty) {
-      tristateVal = true;
-    } else if (deselectedCount == 0) {
-      tristateVal = true;
-    } else if (deselectedCount == items.length) {
-      tristateVal = false;
-    } else {
-      tristateVal = null; // Tristate dash for partial selection
-    }
-
-    final isExpanded = _expandedCategories.contains(category);
-
-    return Column(
-      children: [
-        InkWell(
-          onTap: () {
-            setState(() {
-              if (isExpanded) {
-                _expandedCategories.remove(category);
-              } else {
-                _expandedCategories.add(category);
-              }
-            });
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.xs,
-            ),
-            child: Row(
-              children: [
-                Checkbox(
-                  tristate: true,
-                  value: tristateVal,
-                  onChanged: (val) {
-                    widget.onToggleCategory(category, tristateVal, items);
-                  },
-                ),
-                Icon(category.icon, size: 20, color: colorScheme.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '${category.label} (${items.length})',
-                    style: AppTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-                Icon(
-                  isExpanded
-                      ? Icons.keyboard_arrow_up
-                      : Icons.keyboard_arrow_down,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
-          ),
-        ),
-        if (isExpanded) ...[
-          if (items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.sm,
-              ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'No ${category.label.toLowerCase()} available for current filter.',
-                  style: AppTypography.caption.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            )
-          else
-            ...items.map((item) {
-              final id = getSummaryItemId(item, category);
-              final isItemSelected =
-                  isCategorySelected && !deselectedIds.contains(id);
-
-              return CheckboxListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.only(
-                  left: 48,
-                  right: AppSpacing.md,
-                ),
-                title: Text(
-                  titleBuilder(item),
-                  style: AppTypography.caption.copyWith(
-                    fontWeight:
-                        isItemSelected ? FontWeight.w600 : FontWeight.normal,
-                    color: isItemSelected
-                        ? colorScheme.onSurface
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                subtitle: Text(
-                  subtitleBuilder(item),
-                  style: AppTypography.caption.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                value: isItemSelected,
-                onChanged: (val) {
-                  widget.onToggleItem(id, val ?? false, category);
-                },
-                controlAffinity: ListTileControlAffinity.leading,
-              );
-            }),
-          const SizedBox(height: 4),
-        ],
-        if (!isLast) const Divider(height: 1),
       ],
     );
   }

@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
 
-/// PulsingVaultLogo renders animated 3 concentric rings with a central vault lock icon.
-class PulsingVaultLogo extends StatefulWidget {
-  const PulsingVaultLogo({super.key});
+/// PulsingCrateLogo renders animated 3 concentric rings with a central secure lock icon for MediCrate.
+class PulsingCrateLogo extends StatefulWidget {
+  const PulsingCrateLogo({super.key});
 
   @override
-  State<PulsingVaultLogo> createState() => _PulsingVaultLogoState();
+  State<PulsingCrateLogo> createState() => _PulsingCrateLogoState();
 }
 
-class _PulsingVaultLogoState extends State<PulsingVaultLogo>
+/// Backwards-compatible alias for PulsingCrateLogo.
+typedef PulsingVaultLogo = PulsingCrateLogo;
+
+class _PulsingCrateLogoState extends State<PulsingCrateLogo>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 

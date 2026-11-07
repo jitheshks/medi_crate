@@ -10,6 +10,7 @@ import '../api/ssl_security_context.dart';
 import '../connectivity/connectivity_service.dart';
 import '../storage/hive_service.dart';
 import '../storage/secure_storage_service.dart';
+import '../utils/app_logger.dart';
 import 'background_clinical_pull.dart';
 import 'sync_lock.dart';
 import 'sync_service.dart';
@@ -54,7 +55,12 @@ class BackgroundSyncService {
         try {
           await wm.cancelByUniqueName(legacyPeriodicSyncTaskId);
           await wm.cancelByUniqueName(legacyOneOffSyncTaskId);
-        } catch (_) {}
+        } catch (e) {
+          AppLogger.warning(
+            'Failed to cancel legacy MediVault background tasks: $e',
+            'BackgroundSyncService',
+          );
+        }
 
         // Register periodic background sync safety net (every 15 minutes on Android)
         await wm.registerPeriodicTask(
@@ -63,10 +69,15 @@ class BackgroundSyncService {
           frequency: const Duration(minutes: 15),
           constraints: Constraints(networkType: NetworkType.connected),
           existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+          backoffPolicy: BackoffPolicy.exponential,
+          backoffPolicyDelay: const Duration(seconds: 30),
         );
-      } catch (e) {
-        debugPrint(
-          '[BackgroundSyncService] WorkManager initialization skipped or failed: $e',
+      } catch (e, stackTrace) {
+        AppLogger.error(
+          'WorkManager initialization skipped or failed: $e',
+          e,
+          stackTrace,
+          'BackgroundSyncService',
         );
       }
     }
@@ -86,10 +97,15 @@ class BackgroundSyncService {
           oneOffSyncTaskName,
           constraints: Constraints(networkType: NetworkType.connected),
           existingWorkPolicy: ExistingWorkPolicy.keep,
+          backoffPolicy: BackoffPolicy.exponential,
+          backoffPolicyDelay: const Duration(seconds: 30),
         );
-      } catch (e) {
-        debugPrint(
-          '[BackgroundSyncService] Failed to schedule one-time sync: $e',
+      } catch (e, stackTrace) {
+        AppLogger.error(
+          'Failed to schedule one-time sync: $e',
+          e,
+          stackTrace,
+          'BackgroundSyncService',
         );
       }
     }

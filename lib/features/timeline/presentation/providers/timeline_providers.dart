@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';
 import '../../data/models/timeline_event_model.dart';
@@ -38,9 +39,7 @@ class TimelineEventsNotifier extends AsyncNotifier<List<TimelineEventModel>> {
   }
 
   Future<void> refreshTimeline() async {
-    state = const AsyncLoading<List<TimelineEventModel>>().copyWithPrevious(
-      state,
-    );
+    state = const AsyncLoading<List<TimelineEventModel>>();
     state = await AsyncValue.guard(() async {
       final activeProfile = ref.read(activeProfileProvider);
       if (activeProfile == null) return [];

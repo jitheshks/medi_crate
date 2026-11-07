@@ -104,7 +104,7 @@ class ProfilesListNotifier extends AsyncNotifier<List<ProfileModel>> {
   }
 
   Future<void> refreshProfiles() async {
-    state = const AsyncLoading<List<ProfileModel>>().copyWithPrevious(state);
+    state = const AsyncLoading<List<ProfileModel>>();
     state = await AsyncValue.guard(() async {
       final user = ref.read(authControllerProvider).user;
       if (user == null) return [];

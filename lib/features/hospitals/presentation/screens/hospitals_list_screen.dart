@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:medivalut/app/routes/app_routes.dart';
-import 'package:medivalut/core/constants/app_icons.dart';
-import 'package:medivalut/core/constants/app_spacing.dart';
-import 'package:medivalut/core/constants/app_typography.dart';
-import 'package:medivalut/core/extensions/build_context_extensions.dart';
-import 'package:medivalut/core/theme/app_semantic_colors.dart';
-import 'package:medivalut/features/hospitals/presentation/providers/hospitals_providers.dart';
-import 'package:medivalut/features/hospitals/presentation/widgets/hospital_card.dart';
-import 'package:medivalut/shared/widgets/buttons/sort_toggle_button.dart';
-import 'package:medivalut/shared/widgets/feedback/app_empty_state.dart';
-import 'package:medivalut/shared/widgets/feedback/app_error_state.dart';
-import 'package:medivalut/shared/widgets/feedback/pulsing_vault_logo.dart';
-import 'package:medivalut/shared/widgets/forms/app_search_field.dart';
+import 'package:medi_crate/app/routes/app_routes.dart';
+import 'package:medi_crate/core/constants/app_icons.dart';
+import 'package:medi_crate/core/constants/app_spacing.dart';
+import 'package:medi_crate/core/constants/app_typography.dart';
+import 'package:medi_crate/core/extensions/build_context_extensions.dart';
+import 'package:medi_crate/core/theme/app_semantic_colors.dart';
+import 'package:medi_crate/features/hospitals/presentation/providers/hospitals_providers.dart';
+import 'package:medi_crate/features/hospitals/presentation/widgets/hospital_card.dart';
+import 'package:medi_crate/shared/widgets/buttons/sort_toggle_button.dart';
+import 'package:medi_crate/shared/widgets/feedback/app_empty_state.dart';
+import 'package:medi_crate/shared/widgets/feedback/app_error_state.dart';
+import 'package:medi_crate/shared/widgets/feedback/pulsing_vault_logo.dart';
+import 'package:medi_crate/shared/widgets/forms/app_search_field.dart';
 
 /// HospitalsListScreen presents profile-scoped healthcare facilities directory.
 class HospitalsListScreen extends ConsumerStatefulWidget {

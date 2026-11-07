@@ -23,9 +23,7 @@ class NotificationsListNotifier extends AsyncNotifier<List<NotificationModel>> {
 
   /// Refreshes the notifications list for the active profile.
   Future<void> refresh() async {
-    state = const AsyncLoading<List<NotificationModel>>().copyWithPrevious(
-      state,
-    );
+    state = const AsyncLoading<List<NotificationModel>>();
     state = await AsyncValue.guard(() async {
       final activeProfile = ref.read(activeProfileProvider);
       if (activeProfile == null) return [];

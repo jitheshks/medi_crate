@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:medivalut/core/constants/app_icons.dart';
-import 'package:medivalut/core/theme/app_semantic_colors.dart';
-import 'package:medivalut/features/hospitals/data/models/hospital_model.dart';
-import 'package:medivalut/shared/widgets/cards/entity_tile_card.dart';
+import 'package:medi_crate/core/constants/app_icons.dart';
+import 'package:medi_crate/core/theme/app_semantic_colors.dart';
+import 'package:medi_crate/features/hospitals/data/models/hospital_model.dart';
+import 'package:medi_crate/shared/widgets/cards/entity_tile_card.dart';
 
 /// HospitalCard displays summary info for a healthcare facility in a list tile.
 class HospitalCard extends StatelessWidget {

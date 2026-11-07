@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:medivalut/core/constants/app_icons.dart';
-import 'package:medivalut/core/constants/app_spacing.dart';
-import 'package:medivalut/core/constants/app_typography.dart';
+import 'package:medi_crate/core/constants/app_icons.dart';
+import 'package:medi_crate/core/constants/app_spacing.dart';
+import 'package:medi_crate/core/constants/app_typography.dart';
 
 /// Pure presentation card tile for entity summaries.
 class EntityTileCard extends StatelessWidget {

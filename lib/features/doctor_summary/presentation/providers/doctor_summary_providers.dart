@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../home/presentation/providers/clinical_sync_coordinator.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';
@@ -183,7 +184,7 @@ final doctorSummaryDateRangeLabelProvider = Provider<String>((ref) {
             : <String>{});
 
   if (effectiveIds.isNotEmpty) {
-    final baseSummary = ref.watch(baseDoctorSummaryProvider).valueOrNull;
+    final baseSummary = ref.watch(baseDoctorSummaryProvider).value;
     if (baseSummary != null) {
       if (effectiveIds.length == 1) {
         final focusedId = effectiveIds.first;
@@ -497,7 +498,7 @@ final doctorSummaryProvider = Provider<AsyncValue<DoctorSummaryModel?>>((ref) {
 
 final doctorSummarySelectedCountProvider = Provider<int>((ref) {
   final summaryAsync = ref.watch(doctorSummaryProvider);
-  return summaryAsync.valueOrNull?.totalClinicalItems ?? 0;
+  return summaryAsync.value?.totalClinicalItems ?? 0;
 });
 
 /// Collects all eligible summary item IDs from a DoctorSummaryModel

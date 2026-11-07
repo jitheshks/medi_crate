@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:medivalut/core/constants/app_icons.dart';
-import 'package:medivalut/features/doctors/data/models/doctor_model.dart';
-import 'package:medivalut/features/doctors/presentation/providers/doctors_providers.dart';
-import 'package:medivalut/shared/widgets/cards/entity_tile_card.dart';
+import 'package:medi_crate/core/constants/app_icons.dart';
+import 'package:medi_crate/features/doctors/data/models/doctor_model.dart';
+import 'package:medi_crate/features/doctors/presentation/providers/doctors_providers.dart';
+import 'package:medi_crate/shared/widgets/cards/entity_tile_card.dart';
 
 /// DoctorCard displays compact doctor summary info in a list tile.
 /// Strictly NO favorite / heart icons per product requirements.

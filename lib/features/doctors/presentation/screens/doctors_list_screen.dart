@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:medivalut/app/routes/app_routes.dart';
-import 'package:medivalut/core/constants/app_icons.dart';
-import 'package:medivalut/core/constants/app_spacing.dart';
-import 'package:medivalut/core/constants/app_typography.dart';
-import 'package:medivalut/core/extensions/build_context_extensions.dart';
-import 'package:medivalut/features/doctors/presentation/providers/doctors_providers.dart';
-import 'package:medivalut/features/doctors/presentation/widgets/doctor_card.dart';
-import 'package:medivalut/shared/widgets/buttons/sort_toggle_button.dart';
-import 'package:medivalut/shared/widgets/feedback/app_empty_state.dart';
-import 'package:medivalut/shared/widgets/feedback/app_error_state.dart';
-import 'package:medivalut/shared/widgets/feedback/pulsing_vault_logo.dart';
-import 'package:medivalut/shared/widgets/forms/app_search_field.dart';
+import 'package:medi_crate/app/routes/app_routes.dart';
+import 'package:medi_crate/core/constants/app_icons.dart';
+import 'package:medi_crate/core/constants/app_spacing.dart';
+import 'package:medi_crate/core/constants/app_typography.dart';
+import 'package:medi_crate/core/extensions/build_context_extensions.dart';
+import 'package:medi_crate/features/doctors/presentation/providers/doctors_providers.dart';
+import 'package:medi_crate/features/doctors/presentation/widgets/doctor_card.dart';
+import 'package:medi_crate/shared/widgets/buttons/sort_toggle_button.dart';
+import 'package:medi_crate/shared/widgets/feedback/app_empty_state.dart';
+import 'package:medi_crate/shared/widgets/feedback/app_error_state.dart';
+import 'package:medi_crate/shared/widgets/feedback/pulsing_vault_logo.dart';
+import 'package:medi_crate/shared/widgets/forms/app_search_field.dart';
 
 /// DoctorsListScreen presents the profile-scoped doctor directory
 /// with live search, dynamic counts, and Material 3 empty states.
@@ -100,7 +100,7 @@ class _DoctorsListScreenState extends ConsumerState<DoctorsListScreen> {
                           data: (all) {
                             final total = all.length;
                             final filtered =
-                                filteredDoctorsAsync.valueOrNull?.length ??
+                                filteredDoctorsAsync.value?.length ??
                                 total;
                             final label = searchQuery.isNotEmpty
                                 ? '$filtered of $total doctors'

@@ -199,9 +199,9 @@ class DoctorSummaryScreen extends ConsumerWidget {
           }
 
           final combinedSummary =
-              combinedSummaryAsync.valueOrNull ?? baseSummary;
+              combinedSummaryAsync.value ?? baseSummary;
           final customizedSummary =
-              customizedSummaryAsync.valueOrNull ?? combinedSummary;
+              customizedSummaryAsync.value ?? combinedSummary;
           final p = baseSummary.profile;
 
           return Column(

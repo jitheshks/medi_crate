@@ -85,7 +85,7 @@ class VitalLineChart extends StatelessWidget {
           enabled: true,
           touchTooltipData: LineTouchTooltipData(
             getTooltipColor: (spot) => colorScheme.surface,
-            tooltipRoundedRadius: 8,
+            tooltipBorderRadius: BorderRadius.circular(8),
             tooltipBorder: BorderSide(
               color: colorScheme.outlineVariant.withValues(alpha: 0.4),
               width: 1,

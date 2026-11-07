@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:medivalut/app/routes/app_routes.dart';
-import 'package:medivalut/core/constants/app_spacing.dart';
-import 'package:medivalut/core/constants/app_typography.dart';
-import 'package:medivalut/core/extensions/build_context_extensions.dart';
-import 'package:medivalut/features/doctors/data/models/doctor_model.dart';
-import 'package:medivalut/features/doctors/presentation/providers/doctors_providers.dart';
-import 'package:medivalut/features/doctors/presentation/widgets/doctor_form_fields.dart';
-import 'package:medivalut/features/doctors/presentation/widgets/form/doctor_form_controller.dart';
-import 'package:medivalut/features/hospitals/presentation/widgets/hospital_selection_sheet.dart';
-import 'package:medivalut/features/profile/presentation/providers/profile_providers.dart';
-import 'package:medivalut/shared/utils/form_submit_runner.dart';
-import 'package:medivalut/shared/widgets/buttons/primary_button.dart';
-import 'package:medivalut/shared/widgets/sheets/app_bottom_sheet.dart';
+import 'package:medi_crate/app/routes/app_routes.dart';
+import 'package:medi_crate/core/constants/app_spacing.dart';
+import 'package:medi_crate/core/constants/app_typography.dart';
+import 'package:medi_crate/core/extensions/build_context_extensions.dart';
+import 'package:medi_crate/features/doctors/data/models/doctor_model.dart';
+import 'package:medi_crate/features/doctors/presentation/providers/doctors_providers.dart';
+import 'package:medi_crate/features/doctors/presentation/widgets/doctor_form_fields.dart';
+import 'package:medi_crate/features/doctors/presentation/widgets/form/doctor_form_controller.dart';
+import 'package:medi_crate/features/hospitals/presentation/widgets/hospital_selection_sheet.dart';
+import 'package:medi_crate/features/profile/presentation/providers/profile_providers.dart';
+import 'package:medi_crate/shared/utils/form_submit_runner.dart';
+import 'package:medi_crate/shared/widgets/buttons/primary_button.dart';
+import 'package:medi_crate/shared/widgets/sheets/app_bottom_sheet.dart';
 
 /// AddEditDoctorScreen handles creation and modification of doctor records with hospital relations.
 class AddEditDoctorScreen extends ConsumerStatefulWidget {

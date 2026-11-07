@@ -64,8 +64,8 @@ class _MediCrateAppState extends ConsumerState<MediCrateApp>
     // Connectivity restored while the app is in the foreground -> also refresh
     // (the offline -> online foreground path required by Phase 5 Part 14).
     ref.listen<AsyncValue<bool>>(isOnlineProvider, (prev, next) {
-      final was = prev?.valueOrNull ?? false;
-      final now = next.valueOrNull ?? false;
+      final was = prev?.value ?? false;
+      final now = next.value ?? false;
       if (now && !was) _maybeForegroundSync();
     });
 

@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:medivalut/app/routes/app_routes.dart';
-import 'package:medivalut/core/constants/app_icons.dart';
-import 'package:medivalut/core/constants/app_spacing.dart';
-import 'package:medivalut/core/constants/app_typography.dart';
-import 'package:medivalut/core/extensions/build_context_extensions.dart';
-import 'package:medivalut/features/hospitals/data/models/hospital_model.dart';
-import 'package:medivalut/features/hospitals/presentation/providers/hospitals_providers.dart';
-import 'package:medivalut/shared/widgets/buttons/primary_button.dart';
-import 'package:medivalut/shared/widgets/forms/app_search_field.dart';
-import 'package:medivalut/shared/widgets/sheets/app_bottom_sheet.dart';
+import 'package:medi_crate/app/routes/app_routes.dart';
+import 'package:medi_crate/core/constants/app_icons.dart';
+import 'package:medi_crate/core/constants/app_spacing.dart';
+import 'package:medi_crate/core/constants/app_typography.dart';
+import 'package:medi_crate/core/extensions/build_context_extensions.dart';
+import 'package:medi_crate/features/hospitals/data/models/hospital_model.dart';
+import 'package:medi_crate/features/hospitals/presentation/providers/hospitals_providers.dart';
+import 'package:medi_crate/shared/widgets/buttons/primary_button.dart';
+import 'package:medi_crate/shared/widgets/forms/app_search_field.dart';
+import 'package:medi_crate/shared/widgets/sheets/app_bottom_sheet.dart';
 
 /// HospitalSelectionSheet presents a multi-select bottom modal for choosing or creating hospitals.
 class HospitalSelectionSheet extends ConsumerStatefulWidget {

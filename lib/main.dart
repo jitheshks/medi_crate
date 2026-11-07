@@ -42,7 +42,7 @@ void main() async {
     debugPrint('[Startup] Background sync init skipped: $e');
   }
 
-  runApp(const ProviderScope(child: MediVaultApp()));
+  runApp(const ProviderScope(child: MediCrateApp()));
 }
 
 /// Minimal standalone app shown when required pre-runApp initialization fails.

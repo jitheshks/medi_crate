@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../appointments/data/models/appointment_model.dart';
 import '../../../appointments/presentation/providers/appointment_providers.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
-import 'package:medivalut/core/utils/id_utils.dart';
+import 'package:medi_crate/core/utils/id_utils.dart';
 import '../../../expenses/presentation/providers/expense_providers.dart';
 import '../../../home/presentation/providers/clinical_sync_coordinator.dart';
 import '../../../home/presentation/providers/home_providers.dart';
@@ -65,9 +65,7 @@ class ConsultationsListNotifier extends AsyncNotifier<List<ConsultationModel>> {
   }
 
   Future<void> refreshConsultations() async {
-    state = const AsyncLoading<List<ConsultationModel>>().copyWithPrevious(
-      state,
-    );
+    state = const AsyncLoading<List<ConsultationModel>>();
     state = await AsyncValue.guard(() async {
       final activeProfile = ref.read(activeProfileProvider);
       if (activeProfile == null) return [];

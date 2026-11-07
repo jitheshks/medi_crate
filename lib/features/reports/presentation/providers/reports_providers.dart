@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/utils/id_utils.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
@@ -67,7 +68,7 @@ class ReportsListNotifier extends AsyncNotifier<List<ReportModel>> {
   }
 
   Future<void> refreshReports() async {
-    state = const AsyncLoading<List<ReportModel>>().copyWithPrevious(state);
+    state = const AsyncLoading<List<ReportModel>>();
     state = await AsyncValue.guard(() async {
       final activeProfile = ref.read(activeProfileProvider);
       if (activeProfile == null) return [];

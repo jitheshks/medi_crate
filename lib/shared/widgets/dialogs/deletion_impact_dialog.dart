@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:medivalut/core/constants/app_typography.dart';
-import 'package:medivalut/core/theme/app_theme.dart';
-import 'package:medivalut/features/doctors/data/models/doctor_hospital_relation.dart';
+import 'package:medi_crate/core/constants/app_typography.dart';
+import 'package:medi_crate/core/theme/app_theme.dart';
+import 'package:medi_crate/features/doctors/data/models/doctor_hospital_relation.dart';
 import 'deletion_dialog_variants.dart';
 
 /// Classification of deletion impact for legacy/profile callers.

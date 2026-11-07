@@ -49,7 +49,7 @@ class HomeSummaryNotifier extends AsyncNotifier<HomeSummaryModel> {
   }
 
   Future<void> refresh() async {
-    state = const AsyncLoading<HomeSummaryModel>().copyWithPrevious(state);
+    state = const AsyncLoading<HomeSummaryModel>();
     state = await AsyncValue.guard(() async {
       var activeProfile = ref.read(activeProfileProvider);
       if (activeProfile == null) {

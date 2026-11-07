@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:medivalut/app/routes/app_routes.dart';
-import 'package:medivalut/core/constants/app_spacing.dart';
-import 'package:medivalut/core/constants/app_typography.dart';
-import 'package:medivalut/core/extensions/build_context_extensions.dart';
-import 'package:medivalut/features/hospitals/data/models/hospital_model.dart';
-import 'package:medivalut/features/hospitals/presentation/providers/hospitals_providers.dart';
-import 'package:medivalut/features/hospitals/presentation/widgets/form/hospital_form_controller.dart';
-import 'package:medivalut/features/hospitals/presentation/widgets/hospital_form_fields.dart';
-import 'package:medivalut/features/profile/presentation/providers/profile_providers.dart';
-import 'package:medivalut/shared/utils/form_submit_runner.dart';
-import 'package:medivalut/shared/widgets/buttons/primary_button.dart';
+import 'package:medi_crate/app/routes/app_routes.dart';
+import 'package:medi_crate/core/constants/app_spacing.dart';
+import 'package:medi_crate/core/constants/app_typography.dart';
+import 'package:medi_crate/core/extensions/build_context_extensions.dart';
+import 'package:medi_crate/features/hospitals/data/models/hospital_model.dart';
+import 'package:medi_crate/features/hospitals/presentation/providers/hospitals_providers.dart';
+import 'package:medi_crate/features/hospitals/presentation/widgets/form/hospital_form_controller.dart';
+import 'package:medi_crate/features/hospitals/presentation/widgets/hospital_form_fields.dart';
+import 'package:medi_crate/features/profile/presentation/providers/profile_providers.dart';
+import 'package:medi_crate/shared/utils/form_submit_runner.dart';
+import 'package:medi_crate/shared/widgets/buttons/primary_button.dart';
 
 /// AddEditHospitalScreen handles creation and modification of healthcare facilities.
 class AddEditHospitalScreen extends ConsumerStatefulWidget {

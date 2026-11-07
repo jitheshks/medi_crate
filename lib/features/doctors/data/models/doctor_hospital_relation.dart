@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:medivalut/features/hospitals/data/models/hospital_model.dart';
+import 'package:medi_crate/features/hospitals/data/models/hospital_model.dart';
 
 /// Represents a practicing hospital associated with a doctor, distinguishing
 /// direct configuration vs consultation-derived relationship.

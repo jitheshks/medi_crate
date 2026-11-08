@@ -58,7 +58,8 @@ class GoogleAuthService {
   /// fall back to old MediVault client IDs.
   static Future<void> initialize({
     String? serverClientId,
-    @visibleForTesting Future<void> Function(String clientId)? platformInitializer,
+    @visibleForTesting
+    Future<void> Function(String clientId)? platformInitializer,
   }) async {
     final resolved = serverClientId?.trim();
     if (resolved == null || resolved.isEmpty) {

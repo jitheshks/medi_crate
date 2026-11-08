@@ -78,14 +78,25 @@ abstract class Validators {
     return null;
   }
 
-  /// Validates 4-digit numeric OTP.
-  static String? validateOtp(String? value) {
+  /// Validates numeric OTP code (default 6 digits for Supabase GoTrue, or custom length).
+  /// [allowLegacy4Digit] enables backward compatibility for legacy 4-digit verification.
+  static String? validateOtp(
+    String? value, {
+    int length = 6,
+    bool allowLegacy4Digit = false,
+  }) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter the 4-digit code.';
+      return 'Please enter the verification code.';
     }
     final cleanValue = value.trim();
-    if (cleanValue.length != 4 || !RegExp(r'^\d{4}$').hasMatch(cleanValue)) {
-      return 'The OTP must be exactly 4 digits.';
+    if (!RegExp(r'^\d+$').hasMatch(cleanValue)) {
+      return 'The verification code must contain numbers only.';
+    }
+    final isValidLength =
+        cleanValue.length == length ||
+        (allowLegacy4Digit && cleanValue.length == 4);
+    if (!isValidLength) {
+      return 'The verification code must be $length digits.';
     }
     return null;
   }

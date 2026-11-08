@@ -6,6 +6,7 @@ import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../../shared/widgets/buttons/primary_button.dart';
 import '../../../../shared/widgets/forms/custom_text_field.dart';
 
@@ -14,12 +15,14 @@ class ForgotPasswordForm extends StatefulWidget {
   final bool isLoading;
   final bool isOnline;
   final Function(String email) onSubmit;
+  final VoidCallback? onFieldChanged;
 
   const ForgotPasswordForm({
     super.key,
     required this.isLoading,
     this.isOnline = true,
     required this.onSubmit,
+    this.onFieldChanged,
   });
 
   @override
@@ -32,7 +35,18 @@ class _ForgotPasswordFormState extends State<ForgotPasswordForm> {
   final _emailFocusNode = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_handleTextChanged);
+  }
+
+  void _handleTextChanged() {
+    widget.onFieldChanged?.call();
+  }
+
+  @override
   void dispose() {
+    _emailController.removeListener(_handleTextChanged);
     _emailController.dispose();
     _emailFocusNode.dispose();
     super.dispose();
@@ -74,17 +88,7 @@ class _ForgotPasswordFormState extends State<ForgotPasswordForm> {
               inputFormatters: [
                 FilteringTextInputFormatter.deny(RegExp(r'\s')),
               ],
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) {
-                  return 'Please enter your email address';
-                }
-                final emailTrimmed = val.trim();
-                if (!emailTrimmed.contains('@') ||
-                    !emailTrimmed.contains('.')) {
-                  return 'Please enter a valid email address';
-                }
-                return null;
-              },
+              validator: Validators.validateEmail,
             ),
             const SizedBox(height: 24),
             PrimaryButton(

@@ -10,10 +10,10 @@ import '../../../../core/extensions/build_context_extensions.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/reset_password_form.dart';
 
-/// ResetPasswordScreen handles new password submission with 4-digit OTP (A6).
+/// ResetPasswordScreen handles new password submission with verification OTP (A6).
 class ResetPasswordScreen extends ConsumerWidget {
   final String? email;
-  final String? token; // 4-digit OTP
+  final String? token; // verification OTP
 
   const ResetPasswordScreen({super.key, this.email, this.token});
 
@@ -96,6 +96,13 @@ class ResetPasswordScreen extends ConsumerWidget {
                   ],
                   ResetPasswordForm(
                     isLoading: authState.isLoading,
+                    onFieldChanged: () {
+                      if (authState.resetPasswordError != null) {
+                        ref
+                            .read(authControllerProvider.notifier)
+                            .clearResetPasswordError();
+                      }
+                    },
                     onSubmit: (newPassword, confirmPassword) => _handleReset(
                       ref,
                       context,

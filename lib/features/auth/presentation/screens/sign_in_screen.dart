@@ -28,17 +28,6 @@ class SignInScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _handleAppleSignIn(WidgetRef ref, BuildContext context) async {
-    final success = await ref
-        .read(authControllerProvider.notifier)
-        .signInWithApple();
-
-    if (success && context.mounted) {
-      TextInput.finishAutofillContext();
-      context.go(AppRoutes.dashboard);
-    }
-  }
-
   Future<void> _handleSignIn(
     WidgetRef ref,
     BuildContext context,
@@ -156,9 +145,6 @@ class SignInScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 20),
                         AuthSocialSignInButtons(
-                          onAppleTap: authState.isLoading
-                              ? null
-                              : () => _handleAppleSignIn(ref, context),
                           onGoogleTap: authState.isLoading
                               ? null
                               : () => _handleGoogleSignIn(ref, context),

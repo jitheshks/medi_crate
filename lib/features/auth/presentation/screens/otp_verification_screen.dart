@@ -15,13 +15,14 @@ import '../../../../shared/widgets/feedback/vault_badge.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/otp_verification_form.dart';
 
-/// OtpVerificationScreen processes 4-digit OTP verification for email verification (A2)
+/// OtpVerificationScreen processes OTP verification for email verification (A2)
 /// and password reset routing (A6).
 class OtpVerificationScreen extends ConsumerStatefulWidget {
   final String email;
   final String type; // 'signup' | 'reset_password' | 'change_email'
   final int? initialTimerSeconds;
   final int? userId;
+  final int otpLength;
 
   const OtpVerificationScreen({
     super.key,
@@ -29,7 +30,8 @@ class OtpVerificationScreen extends ConsumerStatefulWidget {
     this.type = 'signup',
     this.initialTimerSeconds,
     this.userId,
-  });
+    int otpLength = 6,
+  }) : otpLength = (otpLength >= 4 && otpLength <= 8) ? otpLength : 6;
 
   @override
   ConsumerState<OtpVerificationScreen> createState() =>
@@ -37,11 +39,8 @@ class OtpVerificationScreen extends ConsumerStatefulWidget {
 }
 
 class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
-  final List<TextEditingController> _controllers = List.generate(
-    4,
-    (_) => TextEditingController(),
-  );
-  final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
+  late final List<TextEditingController> _controllers;
+  late final List<FocusNode> _focusNodes;
   late int _secondsRemaining;
   Timer? _timer;
   bool _isLoading = false;
@@ -54,6 +53,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   @override
   void initState() {
     super.initState();
+    _controllers = List.generate(
+      widget.otpLength,
+      (_) => TextEditingController(),
+    );
+    _focusNodes = List.generate(widget.otpLength, (_) => FocusNode());
     _secondsRemaining = widget.initialTimerSeconds ?? 60;
     if (hasValidEmail) {
       final timerEnabled = ref.read(otpTimerEnabledProvider);
@@ -61,7 +65,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         _startTimer();
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (mounted && _focusNodes.isNotEmpty) {
           _focusNodes[0].requestFocus();
         }
       });
@@ -98,15 +102,16 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   }
 
   void _handleOtpInput(int index, String val) {
+    final count = widget.otpLength;
     if (val.length > 1) {
       final digits = val.replaceAll(RegExp(r'\D'), '');
-      for (int i = 0; i < 4 && i < digits.length; i++) {
+      for (int i = 0; i < count && i < digits.length; i++) {
         _controllers[i].text = digits[i];
       }
-      if (digits.length >= 4) {
+      if (digits.length >= count) {
         FocusScope.of(context).unfocus();
       } else if (digits.isNotEmpty) {
-        final nextIndex = digits.length < 4 ? digits.length : 3;
+        final nextIndex = digits.length < count ? digits.length : count - 1;
         _focusNodes[nextIndex].requestFocus();
       }
       setState(() {});
@@ -114,7 +119,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     }
 
     if (val.isNotEmpty) {
-      if (index < 3) {
+      if (index < count - 1) {
         _focusNodes[index + 1].requestFocus();
       } else {
         FocusScope.of(context).unfocus();
@@ -181,8 +186,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     }
 
     final code = _controllers.map((c) => c.text).join();
-    if (code.length < 4) {
-      setState(() => _error = 'Please enter all 4 digits');
+    if (code.length < widget.otpLength) {
+      setState(() => _error = 'Please enter all ${widget.otpLength} digits');
       return;
     }
 

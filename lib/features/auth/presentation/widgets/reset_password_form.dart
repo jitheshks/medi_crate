@@ -9,11 +9,13 @@ import '../../../../shared/widgets/forms/custom_text_field.dart';
 class ResetPasswordForm extends StatefulWidget {
   final bool isLoading;
   final Function(String newPassword, String confirmPassword) onSubmit;
+  final VoidCallback? onFieldChanged;
 
   const ResetPasswordForm({
     super.key,
     required this.isLoading,
     required this.onSubmit,
+    this.onFieldChanged,
   });
 
   @override
@@ -30,7 +32,20 @@ class _ResetPasswordFormState extends State<ResetPasswordForm> {
   bool _obscureConfirmPassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_handleTextChanged);
+    _confirmController.addListener(_handleTextChanged);
+  }
+
+  void _handleTextChanged() {
+    widget.onFieldChanged?.call();
+  }
+
+  @override
   void dispose() {
+    _passwordController.removeListener(_handleTextChanged);
+    _confirmController.removeListener(_handleTextChanged);
     _passwordController.dispose();
     _confirmController.dispose();
     _passwordFocusNode.dispose();

@@ -20,11 +20,13 @@ class SignUpForm extends StatefulWidget {
     String? selectedGender,
   )
   onSubmit;
+  final VoidCallback? onFieldChanged;
 
   const SignUpForm({
     super.key,
     required this.isLoading,
     required this.onSubmit,
+    this.onFieldChanged,
   });
 
   @override
@@ -50,7 +52,24 @@ class _SignUpFormState extends State<SignUpForm> {
   String? _dobError;
 
   @override
+  void initState() {
+    super.initState();
+    _nameController.addListener(_handleTextChanged);
+    _emailController.addListener(_handleTextChanged);
+    _passwordController.addListener(_handleTextChanged);
+    _confirmPasswordController.addListener(_handleTextChanged);
+  }
+
+  void _handleTextChanged() {
+    widget.onFieldChanged?.call();
+  }
+
+  @override
   void dispose() {
+    _nameController.removeListener(_handleTextChanged);
+    _emailController.removeListener(_handleTextChanged);
+    _passwordController.removeListener(_handleTextChanged);
+    _confirmPasswordController.removeListener(_handleTextChanged);
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();

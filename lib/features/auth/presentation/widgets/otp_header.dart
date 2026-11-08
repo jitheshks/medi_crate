@@ -34,7 +34,7 @@ class OtpHeader extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Enter the 4-digit verification code sent to ${_maskEmail(email)}.',
+          'Enter the verification code sent to ${_maskEmail(email)}.',
           style: AppTypography.subtitle.copyWith(
             color: colorScheme.onSurfaceVariant,
           ),

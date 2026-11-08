@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/constants/app_radius.dart';
 import '../../../../core/constants/app_typography.dart';
 
-/// OtpInputRow renders the 4 separate OTP input boxes with focus traversal and paste handling.
+/// OtpInputRow renders responsive OTP input boxes with focus traversal and paste handling.
 class OtpInputRow extends StatelessWidget {
   final List<TextEditingController> controllers;
   final List<FocusNode> focusNodes;
@@ -20,54 +20,69 @@ class OtpInputRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final count = controllers.length;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(4, (index) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: index == 0 ? 0 : 8,
-            right: index == 3 ? 0 : 8,
-          ),
-          child: SizedBox(
-            width: 56,
-            height: 60,
-            child: TextFormField(
-              controller: controllers[index],
-              focusNode: focusNodes[index],
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              maxLength: 4,
-              autofillHints: const [AutofillHints.oneTimeCode],
-              style: AppTypography.h1.copyWith(color: colorScheme.onSurface),
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                counterText: '',
-                contentPadding: EdgeInsets.zero,
-                filled: true,
-                fillColor: colorScheme.surface,
-                border: OutlineInputBorder(
-                  borderRadius: AppRadius.mdBorder,
-                  borderSide: BorderSide(color: colorScheme.outline),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: AppRadius.mdBorder,
-                  borderSide: BorderSide(color: colorScheme.outline),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: AppRadius.mdBorder,
-                  borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderRadius: AppRadius.mdBorder,
-                  borderSide: BorderSide(color: colorScheme.error),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+        final spacing = count > 5 ? 6.0 : 8.0;
+        final availableWidth = totalWidth - (spacing * (count - 1));
+        final boxWidth = (availableWidth / count).clamp(38.0, 54.0);
+        final boxHeight = (boxWidth * 1.18).clamp(46.0, 60.0);
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(count, (index) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: index == 0 ? 0 : spacing / 2,
+                right: index == count - 1 ? 0 : spacing / 2,
+              ),
+              child: SizedBox(
+                width: boxWidth,
+                height: boxHeight,
+                child: TextFormField(
+                  controller: controllers[index],
+                  focusNode: focusNodes[index],
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  maxLength: count,
+                  autofillHints: const [AutofillHints.oneTimeCode],
+                  style: (count > 5 ? AppTypography.h2 : AppTypography.h1)
+                      .copyWith(color: colorScheme.onSurface),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(
+                    counterText: '',
+                    contentPadding: EdgeInsets.zero,
+                    filled: true,
+                    fillColor: colorScheme.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: AppRadius.mdBorder,
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: AppRadius.mdBorder,
+                      borderSide: BorderSide(color: colorScheme.outline),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: AppRadius.mdBorder,
+                      borderSide: BorderSide(
+                        color: colorScheme.primary,
+                        width: 2,
+                      ),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: AppRadius.mdBorder,
+                      borderSide: BorderSide(color: colorScheme.error),
+                    ),
+                  ),
+                  onChanged: (val) => onChanged(index, val),
                 ),
               ),
-              onChanged: (val) => onChanged(index, val),
-            ),
-          ),
+            );
+          }),
         );
-      }),
+      },
     );
   }
 }

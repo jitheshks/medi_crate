@@ -61,11 +61,13 @@ abstract final class AppRoutes {
     required String email,
     required String type,
     int? userId,
+    int? otpLength,
   }) {
     final params = <String, String>{
       'email': email,
       'type': type,
       if (userId != null) 'user_id': userId.toString(),
+      if (otpLength != null) 'otp_length': otpLength.toString(),
     };
     return Uri(path: '/otp-verification', queryParameters: params).toString();
   }

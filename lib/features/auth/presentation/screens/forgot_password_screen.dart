@@ -9,7 +9,7 @@ import '../../../../shared/widgets/feedback/offline_banner.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/forgot_password_form.dart';
 
-/// ForgotPasswordScreen initiates password recovery via 4-digit OTP email (A5).
+/// ForgotPasswordScreen initiates password recovery via verification OTP email (A5).
 class ForgotPasswordScreen extends ConsumerWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -93,7 +93,7 @@ class ForgotPasswordScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "Enter the email address associated with your account. We'll send a 4-digit verification code to verify your identity and reset your password.",
+                          "Enter the email address associated with your account. We'll send a verification code to verify your identity and reset your password.",
                           style: AppTypography.subtitle.copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),
@@ -110,6 +110,13 @@ class ForgotPasswordScreen extends ConsumerWidget {
                         ForgotPasswordForm(
                           isLoading: authState.isLoading,
                           isOnline: isOnline,
+                          onFieldChanged: () {
+                            if (authState.forgotPasswordError != null) {
+                              ref
+                                  .read(authControllerProvider.notifier)
+                                  .clearForgotPasswordError();
+                            }
+                          },
                           onSubmit: (email) =>
                               _handleSubmit(ref, context, email),
                         ),

@@ -33,17 +33,6 @@ class SignUpScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _handleAppleSignIn(WidgetRef ref, BuildContext context) async {
-    final success = await ref
-        .read(authControllerProvider.notifier)
-        .signInWithApple();
-
-    if (success && context.mounted) {
-      TextInput.finishAutofillContext();
-      context.go(AppRoutes.dashboard);
-    }
-  }
-
   void _onFormSubmit({
     required BuildContext context,
     required WidgetRef ref,
@@ -159,6 +148,13 @@ class SignUpScreen extends ConsumerWidget {
                         ],
                         SignUpForm(
                           isLoading: authState.isLoading,
+                          onFieldChanged: () {
+                            if (authState.signupError != null) {
+                              ref
+                                  .read(authControllerProvider.notifier)
+                                  .clearSignupError();
+                            }
+                          },
                           onSubmit: (name, email, password, dob, gender) =>
                               _onFormSubmit(
                                 context: context,
@@ -185,9 +181,6 @@ class SignUpScreen extends ConsumerWidget {
                           onGoogleTap: authState.isLoading
                               ? null
                               : () => _handleGoogleSignIn(ref, context),
-                          onAppleTap: authState.isLoading
-                              ? null
-                              : () => _handleAppleSignIn(ref, context),
                         ),
                         const SizedBox(height: 28),
                         const SignUpFooter(),

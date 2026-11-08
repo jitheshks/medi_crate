@@ -1,5 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
 import '../../../../core/exceptions/app_exception.dart';
 import '../../data/datasources/remote/auth_remote_data_source.dart';
@@ -14,21 +16,31 @@ class AuthNotifier extends Notifier<AuthState> {
   final AuthRepository? _customRepository;
   final GoogleAuthService? _customGoogleAuthService;
   final AppleAuthService? _customAppleAuthService;
+  final sb.SupabaseClient? _customSupabaseClient;
   Future<void>? _initialSessionFuture;
+  StreamSubscription<sb.AuthState>? _authStateSubscription;
 
   AuthNotifier([
     this._customRepository,
     Ref? _,
     this._customGoogleAuthService,
     this._customAppleAuthService,
+    this._customSupabaseClient,
   ]);
 
   AuthRepository get _repository =>
       _customRepository ?? ref.read(authRepositoryProvider);
   GoogleAuthService get _googleAuthService =>
       _customGoogleAuthService ?? ref.read(googleAuthServiceProvider);
-  AppleAuthService get _appleAuthService =>
-      _customAppleAuthService ?? ref.read(appleAuthServiceProvider);
+  AppleAuthService? get appleAuthService => _customAppleAuthService;
+  sb.SupabaseClient? get _supabaseClient {
+    if (_customSupabaseClient != null) return _customSupabaseClient;
+    try {
+      return ref.read(supabaseClientProvider);
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Whether this notifier is currently mounted and active.
   bool get mounted => ref.mounted;
@@ -36,7 +48,50 @@ class AuthNotifier extends Notifier<AuthState> {
   @override
   AuthState build() {
     _initialSessionFuture = Future.microtask(checkInitialSession);
+
+    final client = _supabaseClient;
+    if (client != null) {
+      try {
+        _authStateSubscription = client.auth.onAuthStateChange.listen((data) {
+          _handleSupabaseAuthEvent(data.event, data.session);
+        });
+      } catch (_) {}
+    }
+
+    ref.onDispose(() {
+      _authStateSubscription?.cancel();
+    });
+
     return const AuthState();
+  }
+
+  void _handleSupabaseAuthEvent(sb.AuthChangeEvent event, sb.Session? session) {
+    if (!mounted) return;
+
+    switch (event) {
+      case sb.AuthChangeEvent.signedIn:
+      case sb.AuthChangeEvent.tokenRefreshed:
+      case sb.AuthChangeEvent.userUpdated:
+        if (session?.user != null) {
+          final user = UserModel.fromSupabaseUser(session!.user);
+          if (!state.isAuthenticated || state.user?.id != user.id) {
+            state = state.copyWith(
+              isLoading: false,
+              isAuthenticated: true,
+              isPendingVerification: false,
+              user: user,
+            );
+          }
+        }
+        break;
+      case sb.AuthChangeEvent.signedOut:
+        if (state.isAuthenticated) {
+          _clearSessionState();
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   /// Completes when the one-time initial session restoration has finished.
@@ -322,7 +377,7 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
-  /// Initiates device-level Google Sign-In and exchanges Firebase ID token with MediCrate A8 endpoint.
+  /// Initiates device-level Google Sign-In and exchanges Google ID token directly with Supabase.
   Future<bool> signInWithGoogle() async {
     await _initialSessionFuture;
     state = state.copyWith(isLoading: true, clearLoginError: true);
@@ -342,16 +397,16 @@ class AuthNotifier extends Notifier<AuthState> {
         return false;
       }
 
-      final firebaseIdToken = authResult.firebaseIdToken;
-      if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
+      final idToken = authResult.idToken ?? authResult.firebaseIdToken;
+      if (idToken == null || idToken.isEmpty) {
         state = state.copyWith(
           isLoading: false,
-          loginError: 'Google Sign-In failed [Stage C]: Token was empty',
+          loginError: 'Google Sign-In failed: Token was empty',
         );
         return false;
       }
 
-      final user = await _repository.googleLogin(firebaseIdToken);
+      final user = await _repository.googleLogin(idToken);
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: true,
@@ -371,78 +426,30 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
-  /// A8 — Google Sign In with a pre-acquired Firebase ID Token
-  Future<bool> googleLogin(String firebaseIdToken) {
+  /// A8 — Google Sign In with an ID Token
+  Future<bool> googleLogin(String googleIdToken) {
     return _handleSocialLogin(
-      () => _repository.googleLogin(firebaseIdToken),
+      () => _repository.googleLogin(googleIdToken),
       'Google sign in failed. Please try again.',
     );
   }
 
-  /// A9 — Apple Sign In
-  Future<bool> appleLogin(String firebaseIdToken) {
-    return _handleSocialLogin(
-      () => _repository.appleLogin(firebaseIdToken),
-      'Apple sign in failed. Please try again.',
+  /// A9 — Apple Sign In (Disabled in Supabase-first architecture)
+  Future<bool> appleLogin(String token) {
+    state = state.copyWith(
+      isLoading: false,
+      loginError: 'Apple Sign-In is not supported in the Supabase-first MediCrate architecture.',
     );
+    return Future.value(false);
   }
 
-  /// Initiates device-level Apple Sign-In and exchanges Firebase ID token
-  /// with MediCrate A9 endpoint — mirrors signInWithGoogle().
+  /// Initiates device-level Apple Sign-In (Disabled in Supabase-first architecture)
   Future<bool> signInWithApple() async {
-    debugPrint('[AppleAuth] AuthNotifier.signInWithApple() invoked');
-    await _initialSessionFuture;
-    state = state.copyWith(isLoading: true, clearLoginError: true);
-    try {
-      final appleAuth = _appleAuthService;
-      final authResult = await appleAuth.authenticateWithApple();
-
-      if (authResult.isCancelled) {
-        // User dismissed the Apple authorization sheet — no error shown
-        state = state.copyWith(isLoading: false);
-        return false;
-      }
-
-      if (authResult.failureStage != null) {
-        // AppleAuthService already logged the failing stage/errorType.
-        final errorMsg = authResult.errorMessage ?? 'Apple Sign-In failed';
-        state = state.copyWith(isLoading: false, loginError: errorMsg);
-        return false;
-      }
-
-      final firebaseIdToken = authResult.firebaseIdToken;
-      if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
-        state = state.copyWith(
-          isLoading: false,
-          loginError: 'Apple Sign-In failed [Stage C]: Token was empty',
-        );
-        return false;
-      }
-
-      debugPrint('[AppleAuth] Calling backend appleLogin()');
-      final user = await _repository.appleLogin(firebaseIdToken);
-      debugPrint('[AppleAuth] Backend Apple login succeeded');
-      state = state.copyWith(
-        isLoading: false,
-        isAuthenticated: true,
-        isPendingVerification: false,
-        user: user,
-      );
-      return true;
-    } on AppException catch (e) {
-      debugPrint('[AppleAuth] FAILED stage=D_BACKEND errorType=AppException');
-      state = state.copyWith(isLoading: false, loginError: e.message);
-      return false;
-    } catch (e) {
-      debugPrint(
-        '[AppleAuth] FAILED stage=D_BACKEND errorType=${e.runtimeType}',
-      );
-      state = state.copyWith(
-        isLoading: false,
-        loginError: 'Apple sign in failed: $e',
-      );
-      return false;
-    }
+    state = state.copyWith(
+      isLoading: false,
+      loginError: 'Apple Sign-In is not supported in the Supabase-first MediCrate architecture.',
+    );
+    return false;
   }
 
   void _clearSessionState([String? errorMsg]) {

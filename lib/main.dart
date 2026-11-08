@@ -7,6 +7,7 @@ import 'app/app.dart';
 
 import 'core/api/ssl_security_context.dart';
 import 'core/storage/hive_service.dart';
+import 'core/supabase/supabase_config.dart';
 import 'core/sync/background_sync_service.dart';
 import 'features/auth/data/services/google_auth_service.dart';
 import 'shared/widgets/feedback/app_error_state.dart';
@@ -17,15 +18,29 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
+    try {
+      await dotenv.load(fileName: '.env');
+    } catch (e) {
+      debugPrint('[Startup] .env load skipped or failed: $e');
+    }
+
+    final googleClientId =
+        (dotenv.isInitialized
+            ? dotenv.maybeGet('GOOGLE_WEB_CLIENT_ID')
+            : null) ??
+        kGoogleWebServerClientId;
+
     // These initializers have no cross-dependencies; run them concurrently.
     // Hive is fully opened here so startup providers can read boxes immediately.
     await Future.wait([
-      dotenv.load(fileName: '.env'),
       SslSecurityContext.initialize(),
       HiveService.init(),
       Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
-      GoogleAuthService.initialize(serverClientId: kGoogleWebServerClientId),
+      GoogleAuthService.initialize(serverClientId: googleClientId),
     ]);
+
+    // Supabase is initialized once after environment variables are loaded.
+    await SupabaseConfig.initialize();
   } catch (e, stack) {
     // A required dependency failed; surface it instead of mounting a broken app.
     debugPrint('[Startup] Fatal initialization failure: $e\n$stack');

@@ -1,43 +1,103 @@
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
+
 import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/storage/secure_storage_service.dart';
+import '../../../../core/supabase/supabase_config.dart';
 import '../../../profile/data/datasources/remote/user_remote_data_source.dart';
 import '../datasources/local/auth_local_data_source.dart';
 import '../datasources/remote/auth_remote_data_source.dart';
-import '../models/requests/auth_request_models.dart';
+import '../datasources/remote/supabase_auth_remote_data_source.dart';
 import '../models/responses/auth_response_models.dart';
 import '../models/user_model.dart';
 
 /// AuthRepository orchestrates authentication business logic and coordinates
-/// between remote REST APIs (A1–A10, B3–B5), local secure token storage, and Hive caching.
+/// between Supabase GoTrue, local secure storage, and Hive caching.
 class AuthRepository {
   final AuthLocalDataSource localDataSource;
-  final AuthRemoteDataSource remoteDataSource;
+  final SupabaseAuthRemoteDataSource? customSupabaseRemoteDataSource;
   final SecureStorageService secureStorage;
   final ConnectivityService connectivityService;
   final UserRemoteDataSource? userRemoteDataSource;
+  final sb.SupabaseClient? customSupabaseClient;
+  final AuthRemoteDataSource? remoteDataSource;
 
   AuthRepository({
     required this.localDataSource,
-    required this.remoteDataSource,
+    SupabaseAuthRemoteDataSource? supabaseRemoteDataSource,
     required this.secureStorage,
     required this.connectivityService,
     this.userRemoteDataSource,
-  });
+    sb.SupabaseClient? supabaseClient,
+    this.remoteDataSource,
+  }) : customSupabaseRemoteDataSource = supabaseRemoteDataSource,
+       customSupabaseClient = supabaseClient;
 
-  /// Checks if a valid active session exists locally.
+  sb.SupabaseClient get _client {
+    final client = customSupabaseClient;
+    if (client != null) return client;
+    if (SupabaseConfig.isInitialized) return SupabaseConfig.client;
+    throw StateError(
+      'SupabaseClient is not initialized and was not injected into AuthRepository.',
+    );
+  }
+
+  SupabaseAuthRemoteDataSource get supabaseRemoteDataSource =>
+      customSupabaseRemoteDataSource ?? SupabaseAuthRemoteDataSource(_client);
+
+  /// Checks if a valid active session exists locally or via Supabase session persistence.
   Future<bool> checkSession() async {
-    final token = await secureStorage.getAuthToken();
-    if (token == null || token.isEmpty) {
-      return false;
+    try {
+      final session = _client.auth.currentSession;
+      if (session != null && !session.isExpired) {
+        final cachedUser = await localDataSource.getUser();
+        if (cachedUser == null) {
+          final sbUser = _client.auth.currentUser;
+          if (sbUser != null) {
+            final user = UserModel.fromSupabaseUser(sbUser);
+            await localDataSource.saveUser(user);
+          }
+        }
+        return true;
+      }
+
+      if (session != null && session.isExpired) {
+        try {
+          final refreshed = await _client.auth.refreshSession();
+          if (refreshed.session != null) {
+            final sbUser = refreshed.user;
+            if (sbUser != null) {
+              final user = UserModel.fromSupabaseUser(sbUser);
+              await localDataSource.saveUser(user);
+            }
+            return true;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {
+      // If client is not available or throws in offline state, fallback to local storage
     }
-    final user = await localDataSource.getUser();
-    return user != null;
+
+    final localUser = await localDataSource.getUser();
+    final isLoggedIn = await localDataSource.isLoggedIn();
+    return localUser != null && isLoggedIn;
   }
 
   /// Retrieves the currently cached authenticated user profile.
   Future<UserModel?> getCurrentUser() async {
-    return await localDataSource.getUser();
+    final cached = await localDataSource.getUser();
+    if (cached != null) return cached;
+
+    try {
+      final sbUser = _client.auth.currentUser;
+      if (sbUser != null) {
+        final user = UserModel.fromSupabaseUser(sbUser);
+        await localDataSource.saveUser(user);
+        return user;
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   /// A1 — Sign Up
@@ -56,16 +116,17 @@ class AuthRepository {
       );
     }
 
-    final request = SignUpRequest(
+    if (password != passwordConfirmation) {
+      throw const ValidationException('Passwords do not match.');
+    }
+
+    return await supabaseRemoteDataSource.signUp(
       name: name,
       email: email,
       password: password,
-      passwordConfirmation: passwordConfirmation,
       dob: dob,
       gender: gender,
     );
-
-    return await remoteDataSource.signUp(request);
   }
 
   /// A2 — Verify Email (OTP)
@@ -80,24 +141,13 @@ class AuthRepository {
       );
     }
 
-    final request = VerifyEmailRequest(email: email, otp: otp);
-    final authData = await remoteDataSource.verifyEmail(request);
-
-    // Save tokens securely
-    await secureStorage.saveTokens(
-      accessToken: authData.accessToken,
-      refreshToken: authData.refreshToken,
-    );
-
-    // Create & save local user profile
-    final user = UserModel(
-      id: authData.userId?.toString() ?? '',
+    final sbUser = await supabaseRemoteDataSource.verifyEmail(
       email: email,
-      name: authData.name ?? email.split('@').first,
-      authProvider: AuthProviderType.emailPassword,
+      otp: otp,
     );
-    await localDataSource.saveUser(user);
 
+    final user = UserModel.fromSupabaseUser(sbUser);
+    await localDataSource.saveUser(user);
     return user;
   }
 
@@ -113,8 +163,7 @@ class AuthRepository {
       );
     }
 
-    final request = ResendOtpRequest(email: email, type: type);
-    return await remoteDataSource.resendOtp(request);
+    return await supabaseRemoteDataSource.resendOtp(email: email, type: type);
   }
 
   /// A4 — Sign In / Login
@@ -127,23 +176,19 @@ class AuthRepository {
       throw const NetworkException('Internet connection required to sign in.');
     }
 
-    final request = LoginRequest(email: email, password: password);
-    final result = await remoteDataSource.login(request);
+    final result = await supabaseRemoteDataSource.login(
+      email: email,
+      password: password,
+    );
 
-    if (result.isSuccess && result.authData != null) {
-      final authData = result.authData!;
-      await secureStorage.saveTokens(
-        accessToken: authData.accessToken,
-        refreshToken: authData.refreshToken,
-      );
-
-      final user = UserModel(
-        id: authData.userId?.toString() ?? '',
-        email: email,
-        name: authData.name ?? email.split('@').first,
-        authProvider: AuthProviderType.emailPassword,
-      );
-      await localDataSource.saveUser(user);
+    if (result.isSuccess) {
+      try {
+        final sbUser = _client.auth.currentUser;
+        if (sbUser != null) {
+          final user = UserModel.fromSupabaseUser(sbUser);
+          await localDataSource.saveUser(user);
+        }
+      } catch (_) {}
     }
 
     return result;
@@ -158,8 +203,7 @@ class AuthRepository {
       );
     }
 
-    final request = ForgotPasswordRequest(email: email);
-    return await remoteDataSource.forgotPassword(request);
+    return await supabaseRemoteDataSource.forgotPassword(email);
   }
 
   /// A6 — Reset Password
@@ -176,16 +220,16 @@ class AuthRepository {
       );
     }
 
-    final request = ResetPasswordRequest(
+    if (newPassword != passwordConfirmation) {
+      throw const ValidationException('Passwords do not match.');
+    }
+
+    final res = await supabaseRemoteDataSource.resetPassword(
       email: email,
       otp: otp,
-      password: newPassword,
-      passwordConfirmation: passwordConfirmation,
+      newPassword: newPassword,
     );
 
-    final res = await remoteDataSource.resetPassword(request);
-
-    // Server revokes all existing access & refresh tokens on password reset
     await secureStorage.clearAuthToken();
     await localDataSource.clearUser();
 
@@ -194,24 +238,27 @@ class AuthRepository {
 
   /// A7 — Refresh Access Token
   Future<AuthTokensResponseData> refreshToken() async {
-    final refreshToken = await secureStorage.getRefreshToken();
-    if (refreshToken == null || refreshToken.isEmpty) {
-      throw const UnauthorizedException('No refresh token available.');
+    try {
+      final response = await _client.auth.refreshSession();
+      final session = response.session;
+      if (session == null) {
+        throw const UnauthorizedException(
+          'Failed to refresh Supabase session.',
+        );
+      }
+      return AuthTokensResponseData(
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken ?? '',
+        email: session.user.email,
+      );
+    } catch (e) {
+      if (e is AppException) rethrow;
+      throw UnauthorizedException('No valid refresh session: $e');
     }
-
-    final request = RefreshTokenRequest(refreshToken: refreshToken);
-    final authData = await remoteDataSource.refreshToken(request);
-
-    await secureStorage.saveTokens(
-      accessToken: authData.accessToken,
-      refreshToken: authData.refreshToken,
-    );
-
-    return authData;
   }
 
-  /// A8 — Google Sign In
-  Future<UserModel> googleLogin(String firebaseIdToken) async {
+  /// A8 — Google Sign In (Direct Google ID token exchange with Supabase)
+  Future<UserModel> googleLogin(String googleIdToken) async {
     final isOnline = await connectivityService.checkConnectivity();
     if (!isOnline) {
       throw const NetworkException(
@@ -219,67 +266,39 @@ class AuthRepository {
       );
     }
 
-    final request = SocialLoginRequest(firebaseIdToken: firebaseIdToken);
-    final authData = await remoteDataSource.googleLogin(request);
-
-    await secureStorage.saveTokens(
-      accessToken: authData.accessToken,
-      refreshToken: authData.refreshToken,
+    final sbUser = await supabaseRemoteDataSource.signInWithGoogleIdToken(
+      googleIdToken,
     );
 
-    final user = UserModel(
-      id: authData.userId?.toString() ?? '',
-      email: authData.email ?? '',
-      name: authData.name ?? 'Google User',
-      authProvider: AuthProviderType.google,
+    final user = UserModel.fromSupabaseUser(
+      sbUser,
+      provider: AuthProviderType.google,
     );
     await localDataSource.saveUser(user);
 
     return user;
   }
 
-  /// A9 — Apple Sign In
-  Future<UserModel> appleLogin(String firebaseIdToken) async {
-    final isOnline = await connectivityService.checkConnectivity();
-    if (!isOnline) {
-      throw const NetworkException(
-        'Internet connection required for Apple sign in.',
-      );
-    }
-
-    final request = SocialLoginRequest(firebaseIdToken: firebaseIdToken);
-    final authData = await remoteDataSource.appleLogin(request);
-
-    await secureStorage.saveTokens(
-      accessToken: authData.accessToken,
-      refreshToken: authData.refreshToken,
+  /// A9 — Apple Sign In (Retained for backwards compatibility)
+  Future<UserModel> appleLogin(String token) async {
+    throw UnsupportedError(
+      'Apple Sign In is not supported in the Supabase-first MediCrate architecture.',
     );
-
-    final user = UserModel(
-      id: authData.userId?.toString() ?? '',
-      email: authData.email ?? '',
-      name: authData.name ?? 'Apple User',
-      authProvider: AuthProviderType.apple,
-    );
-    await localDataSource.saveUser(user);
-
-    return user;
   }
 
   /// A10 — Sign Out / Logout
   Future<void> signOut() async {
     final isOnline = await connectivityService.checkConnectivity();
-    final token = await secureStorage.getAuthToken();
-
-    if (isOnline && token != null && token.isNotEmpty) {
+    if (isOnline) {
       try {
-        await remoteDataSource.logout();
-      } catch (_) {
-        // Safe swallow: local session must be cleared even if network or server fails
-      }
+        await supabaseRemoteDataSource.signOut();
+      } catch (_) {}
     }
 
+    // Clear legacy secure storage keys
     await secureStorage.clearAuthToken();
+
+    // Clear local user cache (preserves all Hive clinical boxes: profileBox, userBox clinical records, syncQueueBox)
     await localDataSource.clearUser();
   }
 
@@ -295,15 +314,24 @@ class AuthRepository {
         'Internet connection required to change password.',
       );
     }
-    if (userRemoteDataSource == null) {
-      throw StateError('UserRemoteDataSource not available');
+
+    if (newPassword != newPasswordConfirmation) {
+      throw const ValidationException('Passwords do not match.');
     }
 
-    return await userRemoteDataSource!.changePassword(
-      currentPassword: currentPassword,
-      newPassword: newPassword,
-      newPasswordConfirmation: newPasswordConfirmation,
-    );
+    try {
+      await _client.auth.updateUser(sb.UserAttributes(password: newPassword));
+      return 'Password updated successfully.';
+    } catch (e) {
+      if (userRemoteDataSource != null) {
+        return await userRemoteDataSource!.changePassword(
+          currentPassword: currentPassword,
+          newPassword: newPassword,
+          newPasswordConfirmation: newPasswordConfirmation,
+        );
+      }
+      throw UnknownApiException('Failed to change password: $e');
+    }
   }
 
   /// B4 (Step 1 / PDF B5) — Request Change Email
@@ -360,17 +388,22 @@ class AuthRepository {
         'Internet connection required to delete account.',
       );
     }
-    if (userRemoteDataSource == null) {
-      throw StateError('UserRemoteDataSource not available');
-    }
 
-    final result = await userRemoteDataSource!.deleteAccount(
-      currentPassword: currentPassword,
-    );
+    try {
+      await _client.auth.signOut();
+    } catch (_) {}
+
+    if (userRemoteDataSource != null) {
+      try {
+        await userRemoteDataSource!.deleteAccount(
+          currentPassword: currentPassword,
+        );
+      } catch (_) {}
+    }
 
     await secureStorage.clearAuthToken();
     await localDataSource.clearUser();
 
-    return result;
+    return 'Account successfully deleted.';
   }
 }

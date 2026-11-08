@@ -10,18 +10,18 @@ const String kGoogleWebServerClientId =
 
 /// Container for Google Sign-In diagnostic result.
 class GoogleAuthResult {
-  final String? firebaseIdToken;
-  final String? failureStage; // 'A_ACCOUNT_SELECTION' | 'B_FIREBASE_AUTH' | 'C_TOKEN_GENERATION'
+  final String? idToken;
+  final String? failureStage; // 'A_ACCOUNT_SELECTION' | 'B_ID_TOKEN_RETRIEVAL'
   final String? errorMessage;
   final bool isCancelled;
 
-  const GoogleAuthResult.success(this.firebaseIdToken)
+  const GoogleAuthResult.success(this.idToken)
     : failureStage = null,
       errorMessage = null,
       isCancelled = false;
 
   const GoogleAuthResult.cancelled()
-    : firebaseIdToken = null,
+    : idToken = null,
       failureStage = null,
       errorMessage = null,
       isCancelled = true;
@@ -29,8 +29,11 @@ class GoogleAuthResult {
   const GoogleAuthResult.failure({
     required this.failureStage,
     required this.errorMessage,
-  }) : firebaseIdToken = null,
+  }) : idToken = null,
        isCancelled = false;
+
+  /// Backwards-compatible getter for legacy code.
+  String? get firebaseIdToken => idToken;
 }
 
 /// GoogleAuthService orchestrates device-level Google Sign-In and
@@ -108,46 +111,24 @@ class GoogleAuthService {
       );
     }
 
-    // Stage B: Firebase Authentication credential exchange
-    UserCredential? userCredential;
+    // Stage B: Obtain Google ID Token directly
+    String? idToken;
     try {
-      final String? idToken = account.authentication.idToken;
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        idToken: idToken,
-      );
-
-      userCredential = await firebaseAuth.signInWithCredential(credential);
-    } on FirebaseAuthException catch (e) {
-      return GoogleAuthResult.failure(
-        failureStage: 'B_FIREBASE_AUTH',
-        errorMessage:
-            'Firebase Auth error (${e.code}): ${e.message ?? e.toString()}',
-      );
-    } catch (e) {
-      return GoogleAuthResult.failure(
-        failureStage: 'B_FIREBASE_AUTH',
-        errorMessage: 'Firebase Auth error (${e.runtimeType}): $e',
-      );
-    }
-
-    // Stage C: Obtain Firebase ID Token
-    String? firebaseIdToken;
-    try {
-      firebaseIdToken = await userCredential.user?.getIdToken();
-      if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
+      idToken = account.authentication.idToken;
+      if (idToken == null || idToken.isEmpty) {
         return const GoogleAuthResult.failure(
-          failureStage: 'C_TOKEN_GENERATION',
-          errorMessage: 'Firebase ID Token was empty or null',
+          failureStage: 'B_ID_TOKEN_RETRIEVAL',
+          errorMessage: 'Google ID Token was empty or null',
         );
       }
     } catch (e) {
       return GoogleAuthResult.failure(
-        failureStage: 'C_TOKEN_GENERATION',
-        errorMessage: 'Token retrieval error (${e.runtimeType}): $e',
+        failureStage: 'B_ID_TOKEN_RETRIEVAL',
+        errorMessage: 'ID token retrieval error (${e.runtimeType}): $e',
       );
     }
 
-    return GoogleAuthResult.success(firebaseIdToken);
+    return GoogleAuthResult.success(idToken);
   }
 
   /// Backward-compatible method returning token string or throwing.

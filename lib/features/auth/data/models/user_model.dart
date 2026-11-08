@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
 /// Supported authentication providers in MediCrate.
 enum AuthProviderType { emailPassword, google, apple }
@@ -62,6 +63,51 @@ class UserModel {
     } catch (_) {
       return AuthProviderType.emailPassword;
     }
+  }
+
+  /// Creates a [UserModel] from a Supabase [sb.User] instance.
+  factory UserModel.fromSupabaseUser(
+    sb.User user, {
+    AuthProviderType? provider,
+  }) {
+    final meta = user.userMetadata ?? <String, dynamic>{};
+    final appMeta = user.appMetadata;
+
+    // Resolve user display name
+    final name =
+        (meta['full_name'] ??
+                meta['name'] ??
+                user.email?.split('@').first ??
+                'User')
+            .toString();
+
+    // Resolve authentication provider
+    AuthProviderType resolvedProvider;
+    if (provider != null) {
+      resolvedProvider = provider;
+    } else {
+      final pStr = (appMeta['provider'] ?? meta['provider'])
+          ?.toString()
+          .toLowerCase();
+      if (pStr == 'google') {
+        resolvedProvider = AuthProviderType.google;
+      } else if (pStr == 'apple') {
+        resolvedProvider = AuthProviderType.apple;
+      } else {
+        resolvedProvider = AuthProviderType.emailPassword;
+      }
+    }
+
+    return UserModel(
+      id: user.id,
+      email: user.email ?? '',
+      name: name,
+      dateOfBirth: meta['dob']?.toString() ?? meta['dateOfBirth']?.toString(),
+      gender: meta['gender']?.toString(),
+      bloodGroup:
+          meta['blood_group']?.toString() ?? meta['bloodGroup']?.toString(),
+      authProvider: resolvedProvider,
+    );
   }
 
   Map<String, dynamic> toMap() {

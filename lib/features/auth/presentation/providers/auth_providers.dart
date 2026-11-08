@@ -1,16 +1,19 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
 import '../../../../core/api/api_client.dart';
 import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/storage/hive_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
+import '../../../../core/supabase/supabase_config.dart';
 import '../../../../core/sync/sync_service.dart';
 import '../../../home/presentation/providers/clinical_sync_coordinator.dart';
 import '../../../profile/data/datasources/remote/user_remote_data_source.dart';
 import '../../data/datasources/local/auth_local_data_source.dart';
 import '../../data/datasources/remote/auth_remote_data_source.dart';
+import '../../data/datasources/remote/supabase_auth_remote_data_source.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/services/apple_auth_service.dart';
 import '../../data/services/google_auth_service.dart';
@@ -98,14 +101,31 @@ final Provider<UserRemoteDataSource> userRemoteDataSourceProvider =
       return UserRemoteDataSource(apiClient: apiClient);
     });
 
+final Provider<sb.SupabaseClient> supabaseClientProvider =
+    Provider<sb.SupabaseClient>((ref) {
+      return SupabaseConfig.client;
+    });
+
+final Provider<SupabaseAuthRemoteDataSource>
+supabaseAuthRemoteDataSourceProvider = Provider<SupabaseAuthRemoteDataSource>((
+  ref,
+) {
+  final client = ref.watch(supabaseClientProvider);
+  return SupabaseAuthRemoteDataSource(client);
+});
+
 final Provider<AuthRepository> authRepositoryProvider =
     Provider<AuthRepository>((ref) {
       return AuthRepository(
         localDataSource: ref.watch(authLocalDataSourceProvider),
-        remoteDataSource: ref.watch(authRemoteDataSourceProvider),
+        supabaseRemoteDataSource: ref.watch(
+          supabaseAuthRemoteDataSourceProvider,
+        ),
         secureStorage: ref.watch(secureStorageProvider),
         connectivityService: ref.watch(connectivityServiceProvider),
         userRemoteDataSource: ref.watch(userRemoteDataSourceProvider),
+        supabaseClient: ref.watch(supabaseClientProvider),
+        remoteDataSource: ref.watch(authRemoteDataSourceProvider),
       );
     });
 

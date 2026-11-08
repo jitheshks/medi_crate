@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/api/api_client.dart';
@@ -57,9 +59,13 @@ final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(
     secureStorage: secureStorage,
     onSessionExpired: () {
-      try {
-        ref.read(authControllerProvider.notifier).handleSessionExpired();
-      } catch (_) {}
+      // Option D: A legacy Laravel 401 represents legacy backend dormancy,
+      // NOT an application session expiration. Decoupled from AuthNotifier
+      // so Supabase sessions are never terminated by legacy Laravel responses.
+      developer.log(
+        '⚠️ [ApiClient] Legacy Laravel 401 intercepted. Application session preserved.',
+        name: 'MediCrate.Auth',
+      );
     },
   );
 });

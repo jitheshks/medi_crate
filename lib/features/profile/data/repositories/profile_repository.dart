@@ -57,6 +57,7 @@ class ProfileRepository {
   }
 
   Future<void> _executePullProfiles(String ownerUserId) async {
+    if (SyncService.isRemotePushSuspended) return;
     try {
       final isOnline = await connectivityService.checkConnectivity();
       if (!isOnline) return;
@@ -341,7 +342,7 @@ class ProfileRepository {
     if (local != null) return local;
 
     final isOnline = await connectivityService.checkConnectivity();
-    if (isOnline) {
+    if (isOnline && !SyncService.isRemotePushSuspended) {
       try {
         final serverId = IdUtils.toServerIntId(profileId);
         if (serverId != null) {
@@ -386,7 +387,7 @@ class ProfileRepository {
       ),
     );
 
-    if (isOnline) {
+    if (isOnline && !SyncService.isRemotePushSuspended) {
       try {
         final res = await remoteDataSource.addFamilyMember(
           profileToSave.toApiJson(),
@@ -419,7 +420,9 @@ class ProfileRepository {
     await localDataSource.saveProfile(profile);
 
     if (profile.isPrimary) {
-      if (isOnline && userRemoteDataSource != null) {
+      if (isOnline &&
+          userRemoteDataSource != null &&
+          !SyncService.isRemotePushSuspended) {
         try {
           final res = await userRemoteDataSource!.updateProfile({
             'name': profile.fullName,
@@ -503,7 +506,7 @@ class ProfileRepository {
       ),
     );
 
-    if (isOnline) {
+    if (isOnline && !SyncService.isRemotePushSuspended) {
       try {
         final res = await remoteDataSource.updateFamilyMember(
           profile.serverProfileId!,
@@ -531,7 +534,7 @@ class ProfileRepository {
     String ownerUserId,
   ) async {
     final isOnline = await connectivityService.checkConnectivity();
-    if (isOnline) {
+    if (isOnline && !SyncService.isRemotePushSuspended) {
       try {
         final remoteSummary = await remoteDataSource.fetchFamilyDashboard();
         if (remoteSummary.isNotEmpty) {
@@ -561,7 +564,7 @@ class ProfileRepository {
     String ownerUserId,
   ) async {
     final isOnline = await connectivityService.checkConnectivity();
-    if (isOnline) {
+    if (isOnline && !SyncService.isRemotePushSuspended) {
       try {
         final remoteAnalytics = await remoteDataSource.fetchFamilyAnalytics();
         if (remoteAnalytics.isNotEmpty) {
@@ -646,7 +649,7 @@ class ProfileRepository {
       ),
     );
 
-    if (isOnline) {
+    if (isOnline && !SyncService.isRemotePushSuspended) {
       final targetServerId =
           existing?.serverProfileId?.toString() ??
           IdUtils.toServerIntId(profileId)?.toString();
@@ -678,7 +681,7 @@ class ProfileRepository {
       );
     }
 
-    if (isOnline) {
+    if (isOnline && !SyncService.isRemotePushSuspended) {
       try {
         final targetServerId =
             existing?.serverProfileId?.toString() ?? profileId;

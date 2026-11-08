@@ -165,6 +165,7 @@ class HospitalRepository {
   }
 
   Future<void> _executePullHospitals(String profileId) async {
+    if (SyncService.isRemotePushSuspended) return;
     try {
       final numericProfileId = IdUtils.resolveServerProfileId(
         profileBox: hiveService.profileBox,
@@ -483,7 +484,7 @@ class HospitalRepository {
     final isNumericServerId = serverIntId != null;
 
     bool syncedRemotely = false;
-    if (remoteDataSource != null) {
+    if (remoteDataSource != null && !SyncService.isRemotePushSuspended) {
       final isOnline = connectivityService != null
           ? await connectivityService!.checkConnectivity()
           : true;
@@ -814,7 +815,9 @@ class HospitalRepository {
     final isNumericServerId = serverIntId != null;
 
     bool deletedRemotely = false;
-    if (remoteDataSource != null && isNumericServerId) {
+    if (remoteDataSource != null &&
+        !SyncService.isRemotePushSuspended &&
+        isNumericServerId) {
       final isOnline = connectivityService != null
           ? await connectivityService!.checkConnectivity()
           : true;

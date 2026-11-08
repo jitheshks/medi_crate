@@ -35,7 +35,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
   @override
   AuthState build() {
-    _initialSessionFuture = checkInitialSession();
+    _initialSessionFuture = Future.microtask(checkInitialSession);
     return const AuthState();
   }
 

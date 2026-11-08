@@ -164,6 +164,7 @@ class ReportRepository {
     int? page,
     int limit = 20,
   }) async {
+    if (SyncService.isRemotePushSuspended) return;
     try {
       final numericProfileId = IdUtils.resolveServerProfileId(
         profileBox: hiveService.profileBox,

@@ -11,6 +11,7 @@ import 'http_client_factory.dart';
 class ApiClient {
   late final Dio _dio;
   final SecureStorageService secureStorage;
+  final void Function()? onSessionExpired;
 
   ApiClient({
     required this.secureStorage,
@@ -18,7 +19,7 @@ class ApiClient {
     String? apiKey,
     HttpClientAdapter? customAdapter,
     Dio? customDio,
-    void Function()? onSessionExpired,
+    this.onSessionExpired,
   }) {
     if (customDio != null) {
       _dio = customDio;

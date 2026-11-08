@@ -94,6 +94,7 @@ class ConsultationRepository {
   }
 
   Future<void> _executePullConsultations(String profileId) async {
+    if (SyncService.isRemotePushSuspended) return;
     try {
       final numericProfileId = IdUtils.resolveServerProfileId(
         profileBox: hiveService.profileBox,
@@ -221,7 +222,9 @@ class ConsultationRepository {
       }
     }
 
-    if (connectivityService != null && remoteDataSource != null) {
+    if (connectivityService != null &&
+        remoteDataSource != null &&
+        !SyncService.isRemotePushSuspended) {
       final isOnline = await connectivityService!.checkConnectivity();
       if (isOnline) {
         try {
@@ -400,7 +403,9 @@ class ConsultationRepository {
     final isNumericServerId =
         IdUtils.toServerIntId(IdUtils.unprefix(id)) != null;
 
-    if (connectivityService != null && remoteDataSource != null) {
+    if (connectivityService != null &&
+        remoteDataSource != null &&
+        !SyncService.isRemotePushSuspended) {
       final isOnline = await connectivityService!.checkConnectivity();
       if (isOnline) {
         final serverProfileId = IdUtils.resolveServerProfileId(
@@ -661,6 +666,7 @@ class ConsultationRepository {
     bool deletedRemotely = false;
     if (connectivityService != null &&
         remoteDataSource != null &&
+        !SyncService.isRemotePushSuspended &&
         isNumericServerId) {
       final isOnline = await connectivityService!.checkConnectivity();
       if (isOnline) {

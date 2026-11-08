@@ -46,6 +46,10 @@ class SyncService {
   final ProfileRemoteDataSource? _profileRemoteDataSource;
   final UserRemoteDataSource? _userRemoteDataSource;
 
+  /// Whether remote push synchronization against legacy Laravel endpoints is suspended.
+  /// Option D target: Suspended to protect offline mutations until Phase 4 Supabase backend.
+  static bool isRemotePushSuspended = true;
+
   bool _isSyncing = false;
   StreamSubscription<bool>? _connectivitySub;
 
@@ -345,6 +349,15 @@ class SyncService {
     bool force = false,
     bool lockAlreadyHeld = false,
   }) async {
+    // Option D isolation: Suspend legacy Laravel pushes to preserve pending mutations for Phase 4
+    if (isRemotePushSuspended) {
+      debugPrint(
+        '[SyncService] Remote push skipped: legacy Laravel sync suspended. '
+        'Pending mutations preserved in Hive for Phase 4.',
+      );
+      return;
+    }
+
     if (_isSyncing) return;
 
     // Cross-context guard: the WorkManager background isolate runs a separate

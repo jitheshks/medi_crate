@@ -87,6 +87,7 @@ class MeasurementRepository {
   }
 
   Future<void> _executePullMeasurements(String profileId) async {
+    if (SyncService.isRemotePushSuspended) return;
     try {
       final numericProfileId = IdUtils.resolveServerProfileId(
         profileBox: hiveService.profileBox,
@@ -181,7 +182,9 @@ class MeasurementRepository {
       }
     }
 
-    if (connectivityService != null && remoteDataSource != null) {
+    if (connectivityService != null &&
+        remoteDataSource != null &&
+        !SyncService.isRemotePushSuspended) {
       final isOnline = await connectivityService!.checkConnectivity();
       if (isOnline) {
         try {
@@ -316,7 +319,9 @@ class MeasurementRepository {
     final serverIntId = IdUtils.toServerIntId(cleanId);
     final isNumericServerId = serverIntId != null;
 
-    if (connectivityService != null && remoteDataSource != null) {
+    if (connectivityService != null &&
+        remoteDataSource != null &&
+        !SyncService.isRemotePushSuspended) {
       final isOnline = await connectivityService!.checkConnectivity();
       if (isOnline) {
         try {
@@ -431,6 +436,7 @@ class MeasurementRepository {
     bool deletedRemotely = false;
     if (connectivityService != null &&
         remoteDataSource != null &&
+        !SyncService.isRemotePushSuspended &&
         isNumericServerId) {
       final isOnline = await connectivityService!.checkConnectivity();
       if (isOnline) {

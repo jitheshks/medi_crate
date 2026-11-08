@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 
@@ -26,6 +27,17 @@ class AuthInterceptor extends QueuedInterceptor {
     this.onSessionExpired,
   }) : apiKey = apiKey ?? ApiConstants.apiKey;
 
+  /// Checks whether a token string is a Supabase JWT (RFC 7519) rather than a legacy Laravel token.
+  /// Supabase JWTs are 3 dot-separated base64url segments (typically beginning with 'ey').
+  /// Laravel Sanctum tokens are format `<id>|<hash>` or opaque strings without 3 dot-separated segments.
+  static bool isSupabaseJwt(String token) {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) return false;
+    final parts = trimmed.split('.');
+    return parts.length == 3 &&
+        (trimmed.startsWith('ey') || parts[0].isNotEmpty);
+  }
+
   static bool _isPublicAuthEndpoint(String path) {
     return path.contains(ApiConstants.signup) ||
         path.contains(ApiConstants.verifyEmail) ||
@@ -48,17 +60,40 @@ class AuthInterceptor extends QueuedInterceptor {
       options.headers[ApiConstants.apiKeyHeader] = apiKey;
     }
 
-    // 2. Inject Authorization Bearer token on protected endpoints if present
+    // 2. Inject Authorization Bearer token on protected endpoints if present.
+    // Option D isolation safety: NEVER attach a Supabase JWT to a legacy Laravel endpoint.
     if (!_isPublicAuthEndpoint(options.path) &&
         !options.headers.containsKey('Authorization')) {
       try {
         final token = await secureStorage.getAuthToken();
         if (token != null && token.isNotEmpty) {
-          options.headers['Authorization'] = 'Bearer $token';
+          if (isSupabaseJwt(token)) {
+            developer.log(
+              '🔒 [AuthInterceptor] Suppressed Supabase JWT from legacy Laravel request: ${options.path}',
+              name: 'MediCrate.Auth',
+            );
+          } else {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
         }
       } catch (_) {
         // Defensive error containment: if reading secure storage fails,
         // do not abort the request; proceed so server can return 401.
+      }
+    }
+
+    // 3. Strip any existing Authorization header if it carries a Supabase JWT
+    if (options.headers.containsKey('Authorization')) {
+      final authHeader = options.headers['Authorization']?.toString() ?? '';
+      if (authHeader.startsWith('Bearer ')) {
+        final tokenPart = authHeader.substring(7).trim();
+        if (isSupabaseJwt(tokenPart)) {
+          developer.log(
+            '🔒 [AuthInterceptor] Stripped Supabase JWT from Authorization header on: ${options.path}',
+            name: 'MediCrate.Auth',
+          );
+          options.headers.remove('Authorization');
+        }
       }
     }
 
@@ -121,7 +156,9 @@ class AuthInterceptor extends QueuedInterceptor {
 
     try {
       final refreshToken = await secureStorage.getRefreshToken();
-      if (refreshToken == null || refreshToken.isEmpty) {
+      if (refreshToken == null ||
+          refreshToken.isEmpty ||
+          isSupabaseJwt(refreshToken)) {
         _refreshCompleter?.complete(null);
         return (token: null, isPermanentAuthError: true);
       }

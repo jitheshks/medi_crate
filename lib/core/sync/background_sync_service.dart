@@ -38,8 +38,13 @@ class BackgroundSyncService {
   static bool _isInitialized = false;
   static bool get isInitialized => _isInitialized;
 
-  /// Initializes the WorkManager plugin and registers periodic safety-net synchronization.
-  /// Can be safely invoked during app startup.
+  /// Whether background synchronization with legacy Laravel endpoints is suspended.
+  /// Option D target: Suspended to protect offline mutations until Phase 4 Supabase backend.
+  static bool isLaravelSyncSuspended = true;
+
+  /// Initializes the WorkManager plugin and ensures legacy background tasks are cancelled.
+  /// When [isLaravelSyncSuspended] is true, cancels both legacy and active periodic tasks,
+  /// and does NOT register any new periodic background tasks.
   static Future<void> initialize({Workmanager? customWorkmanager}) async {
     // Idempotent: a dev hot-restart re-runs main(); a second real init is a
     // no-op anyway (registerPeriodicTask uses ExistingPeriodicWorkPolicy.keep).
@@ -60,6 +65,25 @@ class BackgroundSyncService {
             'Failed to cancel legacy MediVault background tasks: $e',
             'BackgroundSyncService',
           );
+        }
+
+        // Cancel active MediCrate background tasks when legacy sync is suspended
+        try {
+          await wm.cancelByUniqueName(periodicSyncTaskId);
+          await wm.cancelByUniqueName(oneOffSyncTaskId);
+        } catch (e) {
+          AppLogger.warning(
+            'Failed to cancel active MediCrate background tasks: $e',
+            'BackgroundSyncService',
+          );
+        }
+
+        if (isLaravelSyncSuspended) {
+          debugPrint(
+            '[BackgroundSyncService] Legacy Laravel sync is suspended. '
+            'WorkManager background tasks cancelled and not registered.',
+          );
+          return;
         }
 
         // Register periodic background sync safety net (every 15 minutes on Android)
@@ -84,10 +108,16 @@ class BackgroundSyncService {
   }
 
   /// Schedules a one-time background sync task when offline mutations are queued.
-  /// Uses ExistingWorkPolicy.keep to prevent redundant duplicate workers.
+  /// Bypassed when [isLaravelSyncSuspended] is true.
   static Future<void> scheduleOneTimeSync({
     Workmanager? customWorkmanager,
   }) async {
+    if (isLaravelSyncSuspended) {
+      debugPrint(
+        '[BackgroundSyncService] scheduleOneTimeSync skipped: legacy Laravel sync suspended.',
+      );
+      return;
+    }
     if (customWorkmanager != null ||
         (!kIsWeb && (Platform.isAndroid || Platform.isIOS))) {
       try {
@@ -113,13 +143,8 @@ class BackgroundSyncService {
 
   /// Headless execution logic invoked by WorkManager in the background isolate.
   ///
-  /// Full cycle (Phase 5): claim the cross-context [SyncLock] lease once, then
-  ///   1. push pending mutations  ([SyncService.syncPending], reusing the lease)
-  ///   2. pull the 7 clinical domains -> Hive  ([BackgroundClinicalPull])
-  /// then release the lease and ask WorkManager to retry if a transient push
-  /// failure remains. The foreground app picks up the merged Hive state via the
-  /// existing `clinicalCacheRevisionProvider` when it next resumes — this
-  /// isolate never touches Riverpod.
+  /// When [isLaravelSyncSuspended] is true, returns true immediately to complete
+  /// any lingering task safely without network calls.
   static Future<bool> executeBackgroundTask(
     String taskName, {
     HiveService? customHiveService,
@@ -130,6 +155,13 @@ class BackgroundSyncService {
     BackgroundClinicalPull? customBackgroundPull,
   }) async {
     debugPrint('[BackgroundSyncService] Executing background task: $taskName');
+
+    if (isLaravelSyncSuspended) {
+      debugPrint(
+        '[BackgroundSyncService] executeBackgroundTask($taskName) skipped: legacy Laravel sync suspended.',
+      );
+      return true;
+    }
 
     try {
       // 0. Ensure Flutter binding & TLS context are initialized in the background isolate

@@ -10,6 +10,11 @@ class ProfileLocalDataSource {
   static const String _activeProfileIdKey = 'active_profile_id';
 
   Future<List<ProfileModel>> getProfilesForUser(String ownerUserId) async {
+    // Option D isolation requirement: Never expose all profiles when ownerUserId is empty
+    if (ownerUserId.trim().isEmpty) {
+      return [];
+    }
+
     final box = hiveService.profileBox;
     final profiles = <ProfileModel>[];
 
@@ -18,7 +23,7 @@ class ProfileLocalDataSource {
       if (raw != null) {
         final map = Map<String, dynamic>.from(raw);
         final profile = ProfileModel.fromMap(map);
-        if (ownerUserId.isEmpty || profile.ownerUserId == ownerUserId) {
+        if (profile.ownerUserId == ownerUserId.trim()) {
           profiles.add(profile);
         }
       }
@@ -44,13 +49,14 @@ class ProfileLocalDataSource {
     int serverProfileId,
     String ownerUserId,
   ) async {
+    if (ownerUserId.trim().isEmpty) return null;
     final box = hiveService.profileBox;
     for (final key in box.keys) {
       final raw = box.get(key);
       if (raw != null) {
         final map = Map<String, dynamic>.from(raw);
         final profile = ProfileModel.fromMap(map);
-        if ((ownerUserId.isEmpty || profile.ownerUserId == ownerUserId) &&
+        if (profile.ownerUserId == ownerUserId.trim() &&
             profile.serverProfileId == serverProfileId) {
           return profile;
         }
@@ -64,14 +70,14 @@ class ProfileLocalDataSource {
     String ownerUserId,
   ) async {
     final trimmed = clientUuid.trim();
-    if (trimmed.isEmpty) return null;
+    if (trimmed.isEmpty || ownerUserId.trim().isEmpty) return null;
     final box = hiveService.profileBox;
     for (final key in box.keys) {
       final raw = box.get(key);
       if (raw != null) {
         final map = Map<String, dynamic>.from(raw);
         final profile = ProfileModel.fromMap(map);
-        if ((ownerUserId.isEmpty || profile.ownerUserId == ownerUserId) &&
+        if (profile.ownerUserId == ownerUserId.trim() &&
             profile.clientUuid == trimmed) {
           return profile;
         }

@@ -4,6 +4,7 @@ import '../api/api_client.dart';
 import '../connectivity/connectivity_service.dart';
 import '../storage/hive_service.dart';
 import '../storage/secure_storage_service.dart';
+import 'background_sync_service.dart';
 
 import '../../features/appointments/data/datasources/remote/appointment_remote_data_source.dart';
 import '../../features/appointments/data/repositories/appointment_repository.dart';
@@ -57,6 +58,14 @@ class BackgroundClinicalPull {
     @visibleForTesting
     Iterable<Future<void>> Function(String profileId)? pullersFor,
   }) async {
+    // Option D isolation: Skip remote pull when legacy Laravel sync is suspended
+    if (BackgroundSyncService.isLaravelSyncSuspended) {
+      debugPrint(
+        '[BackgroundClinicalPull] Skipping remote pull: legacy Laravel sync suspended for Supabase migration.',
+      );
+      return;
+    }
+
     try {
       if (!await connectivityService.checkConnectivity()) return;
     } catch (_) {

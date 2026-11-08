@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,8 +11,6 @@ import 'core/sync/background_sync_service.dart';
 import 'features/auth/data/services/google_auth_service.dart';
 import 'shared/widgets/feedback/app_error_state.dart';
 
-import 'firebase_options.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -25,17 +22,15 @@ void main() async {
     }
 
     final googleClientId =
-        (dotenv.isInitialized
-            ? dotenv.maybeGet('GOOGLE_WEB_CLIENT_ID')
-            : null) ??
-        kGoogleWebServerClientId;
+        (dotenv.isInitialized ? dotenv.maybeGet('GOOGLE_WEB_CLIENT_ID') : null)
+            ?.trim();
 
     // These initializers have no cross-dependencies; run them concurrently.
     // Hive is fully opened here so startup providers can read boxes immediately.
+    // Firebase is not used; Supabase is the sole backend & authentication authority.
     await Future.wait([
       SslSecurityContext.initialize(),
       HiveService.init(),
-      Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
       GoogleAuthService.initialize(serverClientId: googleClientId),
     ]);
 

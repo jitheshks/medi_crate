@@ -1,12 +1,5 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-
-/// Web OAuth 2.0 client ID from the `oauth_client` entry with `client_type: 3`
-/// in `android/app/google-services.json` (project `medivault-428b2`).
-/// Required by google_sign_in 7.x on Android (Credential Manager) as `serverClientId`.
-const String kGoogleWebServerClientId =
-    '147675311808-e7nh1pk2a214rhak4un8uvme0rr7a5fr.apps.googleusercontent.com';
 
 /// Container for Google Sign-In diagnostic result.
 class GoogleAuthResult {
@@ -37,21 +30,19 @@ class GoogleAuthResult {
 }
 
 /// GoogleAuthService orchestrates device-level Google Sign-In and
-/// Firebase Authentication credential exchange with stage diagnostics.
+/// extracts the raw Google ID token for direct exchange with Supabase GoTrue.
 class GoogleAuthService {
   final GoogleSignIn? _googleSignIn;
-  final FirebaseAuth? _customFirebaseAuth;
   static bool _isInitialized = false;
   static Object? _lastInitError;
+  static String? _serverClientId;
 
   GoogleAuthService({
     GoogleSignIn? googleSignInInstance,
-    FirebaseAuth? firebaseAuth,
-  }) : _googleSignIn = googleSignInInstance,
-       _customFirebaseAuth = firebaseAuth;
+    Object? firebaseAuth, // Retained for backwards compatibility; ignored
+  }) : _googleSignIn = googleSignInInstance;
 
   GoogleSignIn get googleSignIn => _googleSignIn ?? GoogleSignIn.instance;
-  FirebaseAuth get firebaseAuth => _customFirebaseAuth ?? FirebaseAuth.instance;
 
   /// Returns whether the GoogleSignIn plugin has successfully initialized.
   static bool get isInitialized => _isInitialized;
@@ -59,33 +50,62 @@ class GoogleAuthService {
   /// Returns the last initialization error, or null if initialization succeeded.
   static Object? get lastInitError => _lastInitError;
 
-  /// Initializes the underlying GoogleSignIn plugin platform interface.
-  static Future<void> initialize({String? serverClientId}) async {
-    if (_isInitialized) return;
-    final resolved = serverClientId ?? kGoogleWebServerClientId;
+  /// Returns the configured Web Client ID, if any.
+  static String? get serverClientId => _serverClientId;
+
+  /// Initializes the underlying GoogleSignIn plugin with a MediCrate Web Client ID.
+  /// Strict configuration: requires a valid non-empty [serverClientId]; does NOT silently
+  /// fall back to old MediVault client IDs.
+  static Future<void> initialize({
+    String? serverClientId,
+    @visibleForTesting Future<void> Function(String clientId)? platformInitializer,
+  }) async {
+    final resolved = serverClientId?.trim();
+    if (resolved == null || resolved.isEmpty) {
+      _isInitialized = false;
+      _serverClientId = null;
+      _lastInitError =
+          'Google Sign-In is unconfigured: GOOGLE_WEB_CLIENT_ID environment variable is missing or empty. '
+          'Please configure GOOGLE_WEB_CLIENT_ID in your .env or environment configuration.';
+      debugPrint('[GoogleAuthService] $_lastInitError');
+      return;
+    }
+
     try {
-      await GoogleSignIn.instance.initialize(serverClientId: resolved);
+      if (platformInitializer != null) {
+        await platformInitializer(resolved);
+      } else {
+        await GoogleSignIn.instance.initialize(serverClientId: resolved);
+      }
       _isInitialized = true;
+      _serverClientId = resolved;
       _lastInitError = null;
+      debugPrint(
+        '[GoogleAuthService] Initialized with Web Client ID: $resolved',
+      );
     } catch (e, st) {
       _isInitialized = false;
+      _serverClientId = null;
       _lastInitError = e;
       debugPrint('GoogleAuthService.initialize failed: $e\n$st');
     }
+  }
+
+  /// Resets initialization state (primarily for test tearDown).
+  @visibleForTesting
+  static void resetForTesting() {
+    _isInitialized = false;
+    _serverClientId = null;
+    _lastInitError = null;
   }
 
   /// Executes full Google Sign-In with structured diagnostic reporting.
   Future<GoogleAuthResult> authenticateWithGoogle() async {
     if (_googleSignIn == null) {
       if (!_isInitialized) {
-        await initialize();
-      }
-      if (!_isInitialized) {
         return GoogleAuthResult.failure(
           failureStage: 'A_ACCOUNT_SELECTION',
-          errorMessage:
-              'Google Sign-In not configured (init failed'
-              '${_lastInitError != null ? ': $_lastInitError' : ''}).',
+          errorMessage: _lastInitError?.toString() ?? 'Google Sign-In is not configured. Missing GOOGLE_WEB_CLIENT_ID environment variable.',
         );
       }
     }
@@ -143,13 +163,10 @@ class GoogleAuthService {
     return result.firebaseIdToken;
   }
 
-  /// Signs out from Google and Firebase auth sessions.
+  /// Signs out from Google session.
   Future<void> signOut() async {
     try {
       await googleSignIn.signOut();
-    } catch (_) {}
-    try {
-      await firebaseAuth.signOut();
     } catch (_) {}
   }
 }

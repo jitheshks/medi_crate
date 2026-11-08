@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
 /// Supported authentication providers in MediCrate.
@@ -41,29 +40,10 @@ class UserModel {
     this.authProvider = AuthProviderType.emailPassword,
   });
 
-  /// Safely resolves the active Firebase provider when not present in storage.
-  /// Handles linked accounts by giving priority to email/password if credentials exist.
-  static AuthProviderType resolveFirebaseProvider() {
-    try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) return AuthProviderType.emailPassword;
-      final providers = currentUser.providerData
-          .map((p) => p.providerId)
-          .toSet();
-      if (providers.contains('password')) {
-        return AuthProviderType.emailPassword;
-      }
-      if (providers.contains('apple.com')) {
-        return AuthProviderType.apple;
-      }
-      if (providers.contains('google.com')) {
-        return AuthProviderType.google;
-      }
-      return AuthProviderType.emailPassword;
-    } catch (_) {
-      return AuthProviderType.emailPassword;
-    }
-  }
+  /// Deprecated legacy fallback; always defaults to emailPassword without Firebase Auth.
+  @Deprecated('Firebase is no longer used. Providers are managed by Supabase.')
+  static AuthProviderType resolveFirebaseProvider() =>
+      AuthProviderType.emailPassword;
 
   /// Creates a [UserModel] from a Supabase [sb.User] instance.
   factory UserModel.fromSupabaseUser(

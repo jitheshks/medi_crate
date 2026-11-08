@@ -697,6 +697,31 @@ void main() {
       ); // backward compat alias
     });
 
+    test('GoogleAuthService.initialize with null or empty serverClientId marks unconfigured without old fallback', () async {
+      GoogleAuthService.resetForTesting();
+      await GoogleAuthService.initialize(serverClientId: null);
+      expect(GoogleAuthService.isInitialized, isFalse);
+      expect(
+        GoogleAuthService.lastInitError.toString(),
+        contains('GOOGLE_WEB_CLIENT_ID environment variable is missing'),
+      );
+
+      await GoogleAuthService.initialize(serverClientId: '   ');
+      expect(GoogleAuthService.isInitialized, isFalse);
+    });
+
+    test('authenticateWithGoogle on unconfigured service returns clear configuration error', () async {
+      GoogleAuthService.resetForTesting();
+      await GoogleAuthService.initialize(serverClientId: null);
+
+      final unconfiguredService = GoogleAuthService();
+      final result = await unconfiguredService.authenticateWithGoogle();
+
+      expect(result.isCancelled, isFalse);
+      expect(result.failureStage, 'A_ACCOUNT_SELECTION');
+      expect(result.errorMessage, contains('GOOGLE_WEB_CLIENT_ID'));
+    });
+
     test('repository.googleLogin exchanges Google ID token with Supabase and sets Google provider', () async {
       final sbUser = createDummySupabaseUser(provider: 'google');
       fakeGoTrue.mockUser = sbUser;
@@ -946,6 +971,116 @@ void main() {
       test('Legacy Laravel sync flags remain suspended during Supabase auth operation', () {
         expect(BackgroundSyncService.isLaravelSyncSuspended, isTrue);
         expect(SyncService.isRemotePushSuspended, isTrue);
+      });
+    },
+  );
+
+  group(
+    '7. Phase 3B.2.1: Firebase Independence & Google OAuth Audit Tests',
+    () {
+      late FakeSecureStorageService fakeSecureStorage;
+      late FakeGoTrueClient fakeGoTrue;
+      late FakeSupabaseClient fakeSupabaseClient;
+      late SupabaseAuthRemoteDataSource remoteDataSource;
+      late AuthLocalDataSource localDataSource;
+      late AuthRepository repository;
+
+      setUp(() {
+        fakeSecureStorage = FakeSecureStorageService();
+        fakeGoTrue = FakeGoTrueClient();
+        fakeSupabaseClient = FakeSupabaseClient(auth: fakeGoTrue);
+        remoteDataSource = SupabaseAuthRemoteDataSource(fakeSupabaseClient);
+        localDataSource = AuthLocalDataSource(hiveService);
+        repository = AuthRepository(
+          localDataSource: localDataSource,
+          supabaseRemoteDataSource: remoteDataSource,
+          secureStorage: fakeSecureStorage,
+          connectivityService: fakeConnectivity,
+          supabaseClient: fakeSupabaseClient,
+        );
+      });
+
+      test('UserModel.resolveFirebaseProvider returns emailPassword without calling FirebaseAuth', () {
+        final provider = UserModel.resolveFirebaseProvider();
+        expect(provider, AuthProviderType.emailPassword);
+      });
+
+      test('Google OAuth login executes direct ID-token exchange with Supabase GoTrue with zero Firebase or Laravel involvement', () async {
+        final sbUser = createDummySupabaseUser(provider: 'google');
+        fakeGoTrue.mockUser = sbUser;
+        fakeGoTrue.mockSession = createDummySupabaseSession(user: sbUser);
+
+        const testGoogleIdToken = 'google-oauth2-id-token-xyz';
+        final user = await repository.googleLogin(testGoogleIdToken);
+
+        // Verify token passed directly to Supabase signInWithIdToken
+        expect(fakeGoTrue.lastGoogleIdToken, testGoogleIdToken);
+        expect(user.id, sbUser.id);
+        expect(user.authProvider, AuthProviderType.google);
+
+        // Verify no Laravel token is saved in SecureStorage
+        expect(await fakeSecureStorage.getAuthToken(), isNull);
+        expect(await fakeSecureStorage.getRefreshToken(), isNull);
+
+        // Verify cached in Hive for offline identity
+        final cached = await localDataSource.getUser();
+        expect(cached?.id, sbUser.id);
+        expect(cached?.authProvider, AuthProviderType.google);
+      });
+
+      test('Supabase session and auth state restore correctly without SecureStorageService tokens', () async {
+        // SecureStorage is completely empty (no legacy Laravel tokens)
+        expect(await fakeSecureStorage.getAuthToken(), isNull);
+
+        final sbUser = createDummySupabaseUser();
+        fakeGoTrue.mockUser = sbUser;
+        fakeGoTrue.mockSession = createDummySupabaseSession(user: sbUser);
+
+        // Supabase manages session via SupabaseClient / GoTrueClient
+        final currentUser = fakeSupabaseClient.auth.currentUser;
+        expect(currentUser, isNotNull);
+        expect(currentUser?.id, sbUser.id);
+
+        // Repository restores session using Supabase client directly
+        final isAuth = await repository.checkSession();
+        expect(isAuth, isTrue);
+
+        final restoredUser = await repository.getCurrentUser();
+        expect(restoredUser?.id, sbUser.id);
+        expect(restoredUser?.email, 'patient@medicrate.com');
+
+        // SecureStorage remains untouched
+        expect(await fakeSecureStorage.getAuthToken(), isNull);
+      });
+
+      test('GoogleAuthService enforces serverClientId requirement and disallows silent fallback to MediVault client ID', () async {
+        GoogleAuthService.resetForTesting();
+        await GoogleAuthService.initialize(serverClientId: null);
+
+        expect(GoogleAuthService.isInitialized, isFalse);
+        expect(
+          GoogleAuthService.lastInitError.toString(),
+          contains('GOOGLE_WEB_CLIENT_ID environment variable is missing'),
+        );
+        expect(
+          GoogleAuthService.lastInitError.toString(),
+          isNot(contains('147675311808')),
+        );
+
+        // When configured with a valid client ID
+        String? passedClientId;
+        await GoogleAuthService.initialize(
+          serverClientId: 'valid-client-id.apps.googleusercontent.com',
+          platformInitializer: (id) async {
+            passedClientId = id;
+          },
+        );
+        expect(GoogleAuthService.isInitialized, isTrue);
+        expect(
+          GoogleAuthService.serverClientId,
+          'valid-client-id.apps.googleusercontent.com',
+        );
+        expect(passedClientId, 'valid-client-id.apps.googleusercontent.com');
       });
     },
   );

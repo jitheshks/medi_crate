@@ -4,9 +4,7 @@ import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/supabase/supabase_config.dart';
-import '../../../profile/data/datasources/remote/user_remote_data_source.dart';
 import '../datasources/local/auth_local_data_source.dart';
-import '../datasources/remote/auth_remote_data_source.dart';
 import '../datasources/remote/supabase_auth_remote_data_source.dart';
 import '../models/responses/auth_response_models.dart';
 import '../models/user_model.dart';
@@ -18,18 +16,16 @@ class AuthRepository {
   final SupabaseAuthRemoteDataSource? customSupabaseRemoteDataSource;
   final SecureStorageService secureStorage;
   final ConnectivityService connectivityService;
-  final UserRemoteDataSource? userRemoteDataSource;
   final sb.SupabaseClient? customSupabaseClient;
-  final AuthRemoteDataSource? remoteDataSource;
 
   AuthRepository({
     required this.localDataSource,
     SupabaseAuthRemoteDataSource? supabaseRemoteDataSource,
     required this.secureStorage,
     required this.connectivityService,
-    this.userRemoteDataSource,
     sb.SupabaseClient? supabaseClient,
-    this.remoteDataSource,
+    dynamic userRemoteDataSource,
+    dynamic remoteDataSource,
   }) : customSupabaseRemoteDataSource = supabaseRemoteDataSource,
        customSupabaseClient = supabaseClient;
 
@@ -302,6 +298,8 @@ class AuthRepository {
     await localDataSource.clearUser();
   }
 
+  String? _pendingNewEmail;
+
   /// B3 — Change Password
   Future<String> changePassword({
     required String currentPassword,
@@ -322,14 +320,10 @@ class AuthRepository {
     try {
       await _client.auth.updateUser(sb.UserAttributes(password: newPassword));
       return 'Password updated successfully.';
+    } on sb.AuthException catch (e) {
+      throw ValidationException('Failed to update password: ${e.message}');
     } catch (e) {
-      if (userRemoteDataSource != null) {
-        return await userRemoteDataSource!.changePassword(
-          currentPassword: currentPassword,
-          newPassword: newPassword,
-          newPasswordConfirmation: newPasswordConfirmation,
-        );
-      }
+      if (e is AppException) rethrow;
       throw UnknownApiException('Failed to change password: $e');
     }
   }
@@ -345,39 +339,63 @@ class AuthRepository {
         'Internet connection required to request email change.',
       );
     }
-    if (userRemoteDataSource == null) {
-      throw StateError('UserRemoteDataSource not available');
-    }
 
-    return await userRemoteDataSource!.requestChangeEmail(
+    _pendingNewEmail = newEmail.trim();
+
+    return await supabaseRemoteDataSource.requestChangeEmail(
       currentPassword: currentPassword,
       newEmail: newEmail,
     );
   }
 
   /// B4 (Step 2 / PDF B6) — Confirm Change Email
-  Future<Map<String, dynamic>> confirmChangeEmail({required String otp}) async {
+  Future<Map<String, dynamic>> confirmChangeEmail({
+    required String otp,
+    String? newEmail,
+  }) async {
     final isOnline = await connectivityService.checkConnectivity();
     if (!isOnline) {
       throw const NetworkException(
         'Internet connection required to verify OTP.',
       );
     }
-    if (userRemoteDataSource == null) {
-      throw StateError('UserRemoteDataSource not available');
+
+    final targetEmail = (newEmail != null && newEmail.trim().isNotEmpty)
+        ? newEmail.trim()
+        : (_pendingNewEmail ??
+            _client.auth.currentUser?.newEmail ??
+            _client.auth.currentUser?.email ??
+            '');
+
+    if (targetEmail.isEmpty) {
+      throw const ValidationException(
+        'Target email address not found for verification. Please request email change again.',
+      );
     }
 
-    final res = await userRemoteDataSource!.confirmChangeEmail(otp: otp);
-    if (res['user'] is Map) {
-      final userMap = Map<String, dynamic>.from(res['user'] as Map);
-      final currentUser = await localDataSource.getUser();
-      if (currentUser != null && userMap['email'] != null) {
-        await localDataSource.saveUser(
-          currentUser.copyWith(email: userMap['email'].toString()),
-        );
-      }
+    final updatedUser = await supabaseRemoteDataSource.confirmChangeEmail(
+      newEmail: targetEmail,
+      otp: otp,
+    );
+
+    _pendingNewEmail = null;
+
+    final effectiveEmail = updatedUser.email ?? targetEmail;
+    final currentUser = await localDataSource.getUser();
+    if (currentUser != null) {
+      await localDataSource.saveUser(
+        currentUser.copyWith(email: effectiveEmail),
+      );
     }
-    return res;
+
+    return {
+      'status': 'success',
+      'message': 'Email updated successfully.',
+      'user': {
+        'id': updatedUser.id,
+        'email': effectiveEmail,
+      },
+    };
   }
 
   /// B5 (PDF B4) — Delete Account
@@ -389,20 +407,19 @@ class AuthRepository {
       );
     }
 
+    // 1. Execute Supabase RPC deletion workflow (verifies password, purges storage, cascades in DB)
+    await supabaseRemoteDataSource.deleteAccount(
+      currentPassword: currentPassword,
+    );
+
+    // 2. Clear local credentials and user cache only AFTER remote deletion succeeds.
+    // Local cleanup failure cannot incorrectly report that server-side deletion failed.
     try {
-      await _client.auth.signOut();
+      await secureStorage.clearAuthToken();
     } catch (_) {}
-
-    if (userRemoteDataSource != null) {
-      try {
-        await userRemoteDataSource!.deleteAccount(
-          currentPassword: currentPassword,
-        );
-      } catch (_) {}
-    }
-
-    await secureStorage.clearAuthToken();
-    await localDataSource.clearUser();
+    try {
+      await localDataSource.clearUser();
+    } catch (_) {}
 
     return 'Account successfully deleted.';
   }

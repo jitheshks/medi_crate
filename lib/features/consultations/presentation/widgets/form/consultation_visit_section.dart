@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -29,142 +29,159 @@ class ConsultationVisitSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const ConsultationSectionHeader(label: 'Visit'),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Visit Date
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'VISIT DATE *',
-                    style: AppTypography.labelSmall.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10.5,
-                      letterSpacing: 0.8,
-                    ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isTwoColumn = constraints.maxWidth >= 280;
+            final visitDateWidget = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'VISIT DATE *',
+                  style: AppTypography.labelSmall.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 10.5,
+                    letterSpacing: 0.8,
                   ),
-                  const SizedBox(height: 6),
-                  InkWell(
-                    onTap: () async {
-                      final now = DateTime.now();
-                      final today = DateTime(now.year, now.month, now.day);
-                      final initial = visitDate.isAfter(today)
-                          ? today
-                          : visitDate;
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: initial,
-                        firstDate: DateTime(1900),
-                        lastDate: today,
-                      );
-                      if (picked != null) {
-                        ref.read(visitDateProvider.notifier).state = picked;
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(AppRadius.input),
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 48),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.input),
-                        border: Border.all(color: colorScheme.outline),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              formattedVisitDate,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: colorScheme.onSurface,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            AppIcons.calendar,
-                            size: 18,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ],
-                      ),
+                ),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
+                    final initial = visitDate.isAfter(today)
+                        ? today
+                        : visitDate;
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: initial,
+                      firstDate: DateTime(1900),
+                      lastDate: today,
+                    );
+                    if (picked != null) {
+                      ref.read(visitDateProvider.notifier).state = picked;
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(AppRadius.input),
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // Visit Time
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'TIME',
-                    style: AppTypography.labelSmall.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10.5,
-                      letterSpacing: 0.8,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.input),
+                      border: Border.all(color: colorScheme.outline),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: visitTime,
-                      );
-                      if (picked != null) {
-                        ref.read(visitTimeProvider.notifier).state = picked;
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(AppRadius.input),
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 48),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.input),
-                        border: Border.all(color: colorScheme.outline),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            formattedVisitTime,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            formattedVisitDate,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: AppTypography.bodyMedium.copyWith(
                               fontWeight: FontWeight.w700,
                               color: colorScheme.onSurface,
                             ),
                           ),
-                          Icon(
-                            Icons.access_time,
-                            size: 18,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          AppIcons.calendar,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ],
                     ),
                   ),
+                ),
+              ],
+            );
+
+            final visitTimeWidget = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'TIME',
+                  style: AppTypography.labelSmall.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 10.5,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: visitTime,
+                    );
+                    if (picked != null) {
+                      ref.read(visitTimeProvider.notifier).state = picked;
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(AppRadius.input),
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.input),
+                      border: Border.all(color: colorScheme.outline),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            formattedVisitTime,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.bodyMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.access_time,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+
+            if (isTwoColumn) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: visitDateWidget),
+                  const SizedBox(width: 12),
+                  Expanded(child: visitTimeWidget),
                 ],
-              ),
-            ),
-          ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                visitDateWidget,
+                const SizedBox(height: 12),
+                visitTimeWidget,
+              ],
+            );
+          },
         ),
       ],
     );

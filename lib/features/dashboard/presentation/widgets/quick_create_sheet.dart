@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_icons.dart';
@@ -129,15 +129,21 @@ class QuickCreateSheet extends StatelessWidget {
               const SizedBox(height: 20),
 
               // CANCEL Button
-              SizedBox(
-                width: double.infinity,
-                height: 48,
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: 48,
+                  minWidth: double.infinity,
+                ),
                 child: OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: colorScheme.outline),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
                     ),
                   ),
                   child: Text(

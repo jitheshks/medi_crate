@@ -1,9 +1,12 @@
 # Miscellaneous
 *.class
 *.log
+*.tmp
+*.bak
 *.pyc
 *.swp
 .DS_Store
+Thumbs.db
 .atom/
 .build/
 .buildlog/
@@ -18,19 +21,20 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# VS Code
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.packages
+.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+build/
+**/build/
 /coverage/
 
 # Symbolication related
@@ -43,17 +47,45 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/local.properties
+android/key.properties
+android/app/debug.keystore
+local.properties
+key.properties
+
+# iOS / macOS build files
+**/ios/Flutter/ephemeral/
+**/macos/Flutter/ephemeral/
 
 # Widget Preview related
 .widget_preview/
 
-# Environment variables and credentials
+# Environment variables, certificates and credentials
 .env
 .env.*
 !.env.example
+*.pem
+!assets/certs/*.pem
+*.key
 *.keystore
 *.jks
 *.p8
 *.p12
 *.mobileprovision
 
+# Supabase CLI
+supabase/.branches/
+supabase/.temp/
+
+# AI Agent & Assistant configuration
+.agents/
+.claude/
+.cline/
+.config/
+.cursor/
+.opencode/
+.github/skills/
+skills-lock.json
+
+# Local symlinks / aliases
+assets/logo master

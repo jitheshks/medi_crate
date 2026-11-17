@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Common aggregated event model for the longitudinal health timeline.
 @immutable

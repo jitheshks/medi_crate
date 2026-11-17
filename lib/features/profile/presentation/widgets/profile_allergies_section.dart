@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/constants/app_radius.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -23,7 +23,8 @@ class ProfileAllergiesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = allergies.isEmpty;
+    final isInputEnabled = !allergiesConfirmedNone;
+    final isCheckboxEnabled = allergies.isEmpty;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -44,16 +45,23 @@ class ProfileAllergiesSection extends StatelessWidget {
                 height: 48,
                 child: TextField(
                   controller: allergyInputController,
+                  enabled: isInputEnabled,
                   style: AppTypography.bodyMedium.copyWith(
-                    color: colorScheme.onSurface,
+                    color: isInputEnabled
+                        ? colorScheme.onSurface
+                        : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                   ),
                   decoration: InputDecoration(
                     hintText: 'e.g. Penicillin',
                     hintStyle: AppTypography.subtitle.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                      color: isInputEnabled
+                          ? colorScheme.onSurfaceVariant
+                          : colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
                     ),
                     filled: true,
-                    fillColor: colorScheme.surface,
+                    fillColor: isInputEnabled
+                        ? colorScheme.surface
+                        : colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 12,
@@ -66,6 +74,12 @@ class ProfileAllergiesSection extends StatelessWidget {
                       borderRadius: AppRadius.mdBorder,
                       borderSide: BorderSide(color: colorScheme.outline),
                     ),
+                    disabledBorder: OutlineInputBorder(
+                      borderRadius: AppRadius.mdBorder,
+                      borderSide: BorderSide(
+                        color: colorScheme.outline.withValues(alpha: 0.5),
+                      ),
+                    ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: AppRadius.mdBorder,
                       borderSide: BorderSide(
@@ -74,7 +88,7 @@ class ProfileAllergiesSection extends StatelessWidget {
                       ),
                     ),
                   ),
-                  onSubmitted: (_) => onAddAllergy(),
+                  onSubmitted: isInputEnabled ? (_) => onAddAllergy() : null,
                 ),
               ),
             ),
@@ -82,10 +96,14 @@ class ProfileAllergiesSection extends StatelessWidget {
             SizedBox(
               height: 48,
               child: ElevatedButton(
-                onPressed: onAddAllergy,
+                onPressed: isInputEnabled ? onAddAllergy : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colorScheme.primary,
                   foregroundColor: colorScheme.onPrimary,
+                  disabledBackgroundColor:
+                      colorScheme.onSurface.withValues(alpha: 0.12),
+                  disabledForegroundColor:
+                      colorScheme.onSurface.withValues(alpha: 0.38),
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   shape: RoundedRectangleBorder(
@@ -97,7 +115,9 @@ class ProfileAllergiesSection extends StatelessWidget {
                   style: AppTypography.button.copyWith(
                     fontSize: 13,
                     letterSpacing: 0.5,
-                    color: colorScheme.onPrimary,
+                    color: isInputEnabled
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurface.withValues(alpha: 0.38),
                   ),
                 ),
               ),
@@ -152,9 +172,9 @@ class ProfileAllergiesSection extends StatelessWidget {
           ),
         const SizedBox(height: 14),
         Opacity(
-          opacity: enabled ? 1.0 : 0.6,
+          opacity: isCheckboxEnabled ? 1.0 : 0.6,
           child: InkWell(
-            onTap: enabled
+            onTap: isCheckboxEnabled
                 ? () => onAllergiesConfirmedNoneChanged(!allergiesConfirmedNone)
                 : null,
             borderRadius: AppRadius.mdBorder,
@@ -172,7 +192,7 @@ class ProfileAllergiesSection extends StatelessWidget {
                     child: Text(
                       'No known allergies',
                       style: AppTypography.bodyMedium.copyWith(
-                        color: enabled
+                        color: isCheckboxEnabled
                             ? colorScheme.onSurface
                             : colorScheme.onSurfaceVariant,
                       ),
@@ -189,12 +209,12 @@ class ProfileAllergiesSection extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       side: BorderSide(
-                        color: enabled
+                        color: isCheckboxEnabled
                             ? colorScheme.outline
                             : colorScheme.outline.withValues(alpha: 0.5),
                         width: 1.5,
                       ),
-                      onChanged: enabled
+                      onChanged: isCheckboxEnabled
                           ? onAllergiesConfirmedNoneChanged
                           : null,
                     ),

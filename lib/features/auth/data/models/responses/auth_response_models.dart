@@ -101,3 +101,44 @@ class PendingVerificationResponseData {
     );
   }
 }
+
+/// Result container for Sign Up supporting both normal success
+/// and pending_verification status.
+class SignUpResult {
+  final bool isSuccess;
+  final bool isPendingVerification;
+  final SignUpResponseData? data;
+  final PendingVerificationResponseData? pendingData;
+
+  const SignUpResult.success(this.data)
+      : isSuccess = true,
+        isPendingVerification = false,
+        pendingData = null;
+
+  const SignUpResult.pendingVerification(this.pendingData)
+      : isSuccess = false,
+        isPendingVerification = true,
+        data = null;
+
+  int? get userId => isSuccess ? data?.userId : pendingData?.userId;
+  String? get message => isSuccess ? data?.message : pendingData?.message;
+}
+
+/// Result container for Login supporting both verified success
+/// and pending_verification status.
+class LoginResult {
+  final bool isSuccess;
+  final bool isPendingVerification;
+  final AuthTokensResponseData? authData;
+  final PendingVerificationResponseData? pendingData;
+
+  const LoginResult.success(this.authData)
+      : isSuccess = true,
+        isPendingVerification = false,
+        pendingData = null;
+
+  const LoginResult.pendingVerification(this.pendingData)
+      : isSuccess = false,
+        isPendingVerification = true,
+        authData = null;
+}

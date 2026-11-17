@@ -13,24 +13,27 @@ import '../../../home/presentation/providers/home_providers.dart';
 import '../../../insights/presentation/providers/insights_providers.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';
 import '../../../timeline/presentation/providers/timeline_providers.dart';
-import '../../data/datasources/remote/report_remote_data_source.dart';
+import '../../../../shared/attachments/presentation/providers/attachment_upload_provider.dart';
+import '../../data/datasources/remote/supabase_report_remote_data_source.dart';
 import '../../data/models/report_model.dart';
 import '../../data/repositories/report_repository.dart';
 
-final reportRemoteDataSourceProvider = Provider<ReportRemoteDataSource>((ref) {
-  final apiClient = ref.watch(apiClientProvider);
-  return ReportRemoteDataSource(apiClient: apiClient);
+final supabaseReportRemoteDataSourceProvider =
+    Provider<SupabaseReportRemoteDataSource>((ref) {
+  return SupabaseReportRemoteDataSource();
 });
 
 final reportRepositoryProvider = Provider<ReportRepository>((ref) {
   final hive = ref.watch(hiveServiceProvider);
   final sync = ref.watch(syncServiceProvider);
-  final remote = ref.watch(reportRemoteDataSourceProvider);
+  final supabaseRemote = ref.watch(supabaseReportRemoteDataSourceProvider);
+  final storageService = ref.watch(supabaseStorageServiceProvider);
   final connectivity = ref.watch(connectivityServiceProvider);
   return ReportRepository(
     hiveService: hive,
     syncService: sync,
-    remoteDataSource: remote,
+    supabaseRemoteDataSource: supabaseRemote,
+    storageService: storageService,
     connectivityService: connectivity,
     onPullMerged: () {
       try {

@@ -5,13 +5,13 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:workmanager/workmanager.dart';
 
-import '../api/api_client.dart';
-import '../api/ssl_security_context.dart';
 import '../connectivity/connectivity_service.dart';
+import '../security/ssl_security_context.dart';
 import '../storage/hive_service.dart';
 import '../storage/secure_storage_service.dart';
 import '../utils/app_logger.dart';
 import 'background_clinical_pull.dart';
+import 'supabase_sync_coordinator.dart';
 import 'sync_lock.dart';
 import 'sync_service.dart';
 
@@ -38,12 +38,12 @@ class BackgroundSyncService {
   static bool _isInitialized = false;
   static bool get isInitialized => _isInitialized;
 
-  /// Whether background synchronization with legacy Laravel endpoints is suspended.
-  /// Option D target: Suspended to protect offline mutations until Phase 4 Supabase backend.
-  static bool isLaravelSyncSuspended = true;
+  /// Whether background synchronization is enabled.
+  /// Governed by [SyncService.isRemoteSyncEnabled].
+  static bool get isBackgroundSyncEnabled => SyncService.isRemoteSyncEnabled;
 
-  /// Initializes the WorkManager plugin and ensures legacy background tasks are cancelled.
-  /// When [isLaravelSyncSuspended] is true, cancels both legacy and active periodic tasks,
+  /// Initializes the WorkManager plugin and ensures background tasks are managed.
+  /// When [SyncService.isRemoteSyncEnabled] is false, cancels background tasks
   /// and does NOT register any new periodic background tasks.
   static Future<void> initialize({Workmanager? customWorkmanager}) async {
     // Idempotent: a dev hot-restart re-runs main(); a second real init is a
@@ -67,7 +67,7 @@ class BackgroundSyncService {
           );
         }
 
-        // Cancel active MediCrate background tasks when legacy sync is suspended
+        // Cancel active MediCrate background tasks when remote sync is disabled
         try {
           await wm.cancelByUniqueName(periodicSyncTaskId);
           await wm.cancelByUniqueName(oneOffSyncTaskId);
@@ -78,9 +78,9 @@ class BackgroundSyncService {
           );
         }
 
-        if (isLaravelSyncSuspended) {
+        if (!SyncService.isRemoteSyncEnabled) {
           debugPrint(
-            '[BackgroundSyncService] Legacy Laravel sync is suspended. '
+            '[BackgroundSyncService] Remote synchronization is disabled. '
             'WorkManager background tasks cancelled and not registered.',
           );
           return;
@@ -108,13 +108,13 @@ class BackgroundSyncService {
   }
 
   /// Schedules a one-time background sync task when offline mutations are queued.
-  /// Bypassed when [isLaravelSyncSuspended] is true.
+  /// Bypassed when [SyncService.isRemoteSyncEnabled] is false.
   static Future<void> scheduleOneTimeSync({
     Workmanager? customWorkmanager,
   }) async {
-    if (isLaravelSyncSuspended) {
+    if (!SyncService.isRemoteSyncEnabled) {
       debugPrint(
-        '[BackgroundSyncService] scheduleOneTimeSync skipped: legacy Laravel sync suspended.',
+        '[BackgroundSyncService] scheduleOneTimeSync skipped: remote synchronization is disabled.',
       );
       return;
     }
@@ -143,22 +143,21 @@ class BackgroundSyncService {
 
   /// Headless execution logic invoked by WorkManager in the background isolate.
   ///
-  /// When [isLaravelSyncSuspended] is true, returns true immediately to complete
+  /// When [SyncService.isRemoteSyncEnabled] is false, returns true immediately to complete
   /// any lingering task safely without network calls.
   static Future<bool> executeBackgroundTask(
     String taskName, {
     HiveService? customHiveService,
     SecureStorageService? customSecureStorage,
-    ApiClient? customApiClient,
     ConnectivityService? customConnectivityService,
     SyncService? customSyncService,
     BackgroundClinicalPull? customBackgroundPull,
   }) async {
     debugPrint('[BackgroundSyncService] Executing background task: $taskName');
 
-    if (isLaravelSyncSuspended) {
+    if (!SyncService.isRemoteSyncEnabled) {
       debugPrint(
-        '[BackgroundSyncService] executeBackgroundTask($taskName) skipped: legacy Laravel sync suspended.',
+        '[BackgroundSyncService] executeBackgroundTask($taskName) skipped: remote synchronization is disabled.',
       );
       return true;
     }
@@ -180,15 +179,13 @@ class BackgroundSyncService {
       final hiveService = customHiveService ?? HiveService();
       final syncBox = hiveService.syncQueueBox;
 
-      // 2. Construct headless services & API client for background execution
+      // 2. Construct headless services for background execution
       if (!dotenv.isInitialized) {
         try {
           await dotenv.load(fileName: ".env");
         } catch (_) {}
       }
       final secureStorage = customSecureStorage ?? SecureStorageService();
-      final apiClient =
-          customApiClient ?? ApiClient(secureStorage: secureStorage);
       final connectivity = customConnectivityService ?? ConnectivityService();
 
       final syncService =
@@ -196,7 +193,9 @@ class BackgroundSyncService {
           SyncService(
             hiveService: hiveService,
             connectivityService: connectivity,
-            apiClient: apiClient,
+            customSupabaseSyncCoordinator: SupabaseSyncCoordinator(
+              hiveService: hiveService,
+            ),
           );
       final backgroundPull =
           customBackgroundPull ?? const BackgroundClinicalPull();
@@ -222,7 +221,6 @@ class BackgroundSyncService {
         //    repository pull + merge (PendingMutationGuard still applies).
         await backgroundPull.run(
           hiveService: hiveService,
-          apiClient: apiClient,
           connectivityService: connectivity,
           secureStorage: secureStorage,
         );

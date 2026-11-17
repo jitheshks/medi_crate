@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:medi_crate/core/constants/app_typography.dart';
 import 'package:medi_crate/core/theme/app_theme.dart';
 import 'package:medi_crate/features/doctors/data/models/doctor_hospital_relation.dart';
@@ -46,7 +46,8 @@ class DeletionImpactDialog extends StatelessWidget {
   final String deleteButtonText;
   final bool isReassuranceOnly;
   final String? reassuranceMessage;
-  final bool isLegacyMode;
+  final bool isImpactBreakdownMode;
+  bool get isLegacyMode => isImpactBreakdownMode;
 
   const DeletionImpactDialog({
     super.key,
@@ -62,8 +63,9 @@ class DeletionImpactDialog extends StatelessWidget {
     this.deleteButtonText = 'DELETE',
     this.isReassuranceOnly = false,
     this.reassuranceMessage,
-    this.isLegacyMode = false,
-  });
+    bool isLegacyMode = false,
+    bool isImpactBreakdownMode = false,
+  }) : isImpactBreakdownMode = isImpactBreakdownMode || isLegacyMode;
 
   static DateTime _lastOpenTime = DateTime.fromMillisecondsSinceEpoch(0);
   static const Duration _cooldown = Duration(milliseconds: 500);
@@ -144,7 +146,7 @@ class DeletionImpactDialog extends StatelessWidget {
         customWarning: customWarning,
         onConfirm: onConfirm,
         deleteButtonText: deleteButtonText,
-        isLegacyMode: true,
+        isImpactBreakdownMode: true,
       ),
     );
   }
@@ -246,8 +248,8 @@ class DeletionImpactDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isLegacyMode) {
-      return LegacyDeletionDialog(
+    if (isImpactBreakdownMode) {
+      return ImpactBreakdownDeletionDialog(
         title: title,
         recordName: recordName,
         impactItems: impactItems,

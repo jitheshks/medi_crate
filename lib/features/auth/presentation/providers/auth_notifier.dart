@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
 import '../../../../core/exceptions/app_exception.dart';
-import '../../data/datasources/remote/auth_remote_data_source.dart';
+import '../../data/models/responses/auth_response_models.dart';
 import '../../data/models/user_model.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/services/apple_auth_service.dart';
@@ -215,8 +215,9 @@ class AuthNotifier extends Notifier<AuthState> {
     required String dob,
     String? gender,
   }) async {
-    await _initialSessionFuture;
+    if (state.isLoading) return null;
     state = state.copyWith(isLoading: true, clearSignupError: true);
+    await _initialSessionFuture;
     try {
       final response = await _repository.signUp(
         name: name,
@@ -233,6 +234,7 @@ class AuthNotifier extends Notifier<AuthState> {
               ? 'Email not verified. OTP resent successfully.'
               : 'Verification code sent to your email');
 
+      if (!mounted) return response;
       state = state.copyWith(
         isLoading: false,
         isPendingVerification: true,
@@ -241,13 +243,20 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       return response;
     } on AppException catch (e) {
-      state = state.copyWith(isLoading: false, signupError: e.message);
+      if (mounted) {
+        state = state.copyWith(
+          isLoading: false,
+          signupError: e.userFriendlyMessage,
+        );
+      }
       return null;
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        signupError: 'Registration failed. Please try again.',
-      );
+      if (mounted) {
+        state = state.copyWith(
+          isLoading: false,
+          signupError: 'An unexpected error occurred. Please try again.',
+        );
+      }
       return null;
     }
   }
@@ -454,6 +463,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
   void _clearSessionState([String? errorMsg]) {
     try {
+      ref.read(profileRepositoryProvider).clearSessionProfileData(state.user?.id);
       ref.invalidate(activeProfileProvider);
       ref.invalidate(profilesListProvider);
     } catch (_) {}
@@ -474,6 +484,18 @@ class AuthNotifier extends Notifier<AuthState> {
       await _repository.signOut();
     } finally {
       _clearSessionState();
+    }
+  }
+
+  /// B5 — Delete Account: Deletes remote Supabase account and cascades local state cleanup.
+  Future<void> deleteAccount({required String currentPassword}) async {
+    state = state.copyWith(isLoading: true);
+    try {
+      await _repository.deleteAccount(currentPassword: currentPassword);
+      _clearSessionState();
+    } catch (_) {
+      state = state.copyWith(isLoading: false);
+      rethrow;
     }
   }
 

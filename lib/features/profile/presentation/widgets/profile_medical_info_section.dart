@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/constants/app_typography.dart';
 import '../../../../shared/widgets/forms/custom_text_field.dart';
@@ -95,30 +95,58 @@ class ProfileMedicalInfoSection extends StatelessWidget {
           },
         ),
         const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: CustomTextField(
-                label: 'HEIGHT (CM)',
-                hint: 'e.g. 175',
-                controller: heightController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isTwoColumn = constraints.maxWidth >= 280;
+            if (isTwoColumn) {
+              return Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'HEIGHT (CM)',
+                      hint: 'e.g. 175',
+                      controller: heightController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'WEIGHT (KG)',
+                      hint: 'e.g. 70',
+                      controller: weightController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+            return Column(
+              children: [
+                CustomTextField(
+                  label: 'HEIGHT (CM)',
+                  hint: 'e.g. 175',
+                  controller: heightController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: CustomTextField(
-                label: 'WEIGHT (KG)',
-                hint: 'e.g. 70',
-                controller: weightController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                const SizedBox(height: 14),
+                CustomTextField(
+                  label: 'WEIGHT (KG)',
+                  hint: 'e.g. 70',
+                  controller: weightController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ],
     );

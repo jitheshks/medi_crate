@@ -8,7 +8,7 @@ import 'package:medi_crate/features/appointments/presentation/providers/appointm
 import 'package:medi_crate/features/auth/presentation/providers/auth_providers.dart';
 import 'package:medi_crate/features/consultations/data/models/consultation_model.dart';
 import 'package:medi_crate/features/consultations/presentation/providers/consultation_providers.dart';
-import 'package:medi_crate/features/doctors/data/datasources/remote/doctor_remote_data_source.dart';
+import 'package:medi_crate/features/doctors/data/datasources/remote/supabase_doctor_remote_data_source.dart';
 import 'package:medi_crate/features/doctors/data/models/doctor_hospital_relation.dart';
 import 'package:medi_crate/features/doctors/data/models/doctor_model.dart';
 import 'package:medi_crate/features/doctors/data/repositories/doctor_repository.dart';
@@ -20,19 +20,20 @@ import 'package:medi_crate/features/profile/presentation/providers/profile_provi
 import 'package:medi_crate/features/reports/data/models/report_model.dart';
 import 'package:medi_crate/features/reports/presentation/providers/reports_providers.dart';
 
-final doctorRemoteDataSourceProvider = Provider<DoctorRemoteDataSource>((ref) {
-  final apiClient = ref.watch(apiClientProvider);
-  return DoctorRemoteDataSource(apiClient: apiClient);
+final supabaseDoctorRemoteDataSourceProvider =
+    Provider<SupabaseDoctorRemoteDataSource>((ref) {
+  return SupabaseDoctorRemoteDataSource();
 });
 
 final doctorRepositoryProvider = Provider<DoctorRepository>((ref) {
   final hiveService = ref.watch(hiveServiceProvider);
-  final remoteDataSource = ref.watch(doctorRemoteDataSourceProvider);
+  final supabaseRemoteDataSource =
+      ref.watch(supabaseDoctorRemoteDataSourceProvider);
   final connectivityService = ref.watch(connectivityServiceProvider);
   final syncService = ref.watch(syncServiceProvider);
   return DoctorRepository(
     hiveService: hiveService,
-    remoteDataSource: remoteDataSource,
+    supabaseRemoteDataSource: supabaseRemoteDataSource,
     connectivityService: connectivityService,
     syncService: syncService,
     onPullMerged: () {

@@ -6,25 +6,26 @@ import '../../../home/presentation/providers/home_providers.dart';
 import '../../../insights/presentation/providers/insights_providers.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';
 import '../../../timeline/presentation/providers/timeline_providers.dart';
-import '../../data/datasources/remote/vitals_remote_data_source.dart';
+import '../../data/datasources/remote/supabase_vitals_remote_data_source.dart';
 import '../../data/models/measurement_model.dart';
 import '../../data/repositories/measurement_repository.dart';
 
-final vitalsRemoteDataSourceProvider = Provider<VitalsRemoteDataSource>((ref) {
-  final apiClient = ref.watch(apiClientProvider);
-  return VitalsRemoteDataSource(apiClient: apiClient);
+final supabaseVitalsRemoteDataSourceProvider =
+    Provider<SupabaseVitalsRemoteDataSource>((ref) {
+  return SupabaseVitalsRemoteDataSource();
 });
 
 /// Provider for MeasurementRepository
 final measurementRepositoryProvider = Provider<MeasurementRepository>((ref) {
   final hiveService = ref.watch(hiveServiceProvider);
   final syncService = ref.watch(syncServiceProvider);
-  final remoteDataSource = ref.watch(vitalsRemoteDataSourceProvider);
+  final supabaseRemoteDataSource =
+      ref.watch(supabaseVitalsRemoteDataSourceProvider);
   final connectivity = ref.watch(connectivityServiceProvider);
   return MeasurementRepository(
     hiveService: hiveService,
     syncService: syncService,
-    remoteDataSource: remoteDataSource,
+    supabaseRemoteDataSource: supabaseRemoteDataSource,
     connectivityService: connectivity,
     onPullMerged: () {
       try {

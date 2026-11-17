@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:medi_crate/core/constants/app_icons.dart';
 import 'package:medi_crate/core/theme/app_semantic_colors.dart';
 import 'package:medi_crate/features/hospitals/data/models/hospital_model.dart';

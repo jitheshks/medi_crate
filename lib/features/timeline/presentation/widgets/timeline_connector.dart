@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Renders the vertical connector rail line and timeline node icon box.
 class TimelineConnector extends StatelessWidget {

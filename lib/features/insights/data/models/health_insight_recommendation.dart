@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// HealthInsightRecommendation represents an actionable, profile-scoped health recommendation
 /// derived from observable application health records.

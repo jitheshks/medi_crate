@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_typography.dart';
@@ -12,11 +12,13 @@ import 'profile_form_dialog.dart';
 class FamilyProfileCard extends ConsumerWidget {
   final ProfileModel profile;
   final bool isActive;
+  final bool isArchivedView;
 
   const FamilyProfileCard({
     super.key,
     required this.profile,
     required this.isActive,
+    this.isArchivedView = false,
   });
 
   @override
@@ -89,6 +91,38 @@ class FamilyProfileCard extends ConsumerWidget {
                             ),
                           ),
                         ],
+                        if (profile.isArchived) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.archive_outlined,
+                                  size: 12,
+                                  color: Colors.amber,
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  'ARCHIVED',
+                                  style: AppTypography.caption.copyWith(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.amber.shade800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -106,55 +140,79 @@ class FamilyProfileCard extends ConsumerWidget {
                 onSelected: (action) {
                   if (action == 'edit') {
                     ProfileFormDialog.show(context, profileToEdit: profile);
-                  } else if (action == 'make_primary') {
-                    ref
-                        .read(profilesListProvider.notifier)
-                        .markAsPrimary(profile);
+                  } else if (action == 'archive') {
+                    _confirmArchive(context, ref);
+                  } else if (action == 'restore') {
+                    _confirmRestore(context, ref);
                   } else if (action == 'delete') {
                     ProfileDeleteHelper.confirmDelete(context, ref, profile);
                   }
                 },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'edit',
-                    child: Row(
-                      children: [
-                        Icon(Icons.edit_outlined, size: 18),
-                        SizedBox(width: 8),
-                        Text('Edit Profile'),
-                      ],
-                    ),
-                  ),
-                  if (!profile.isPrimary) ...[
+                itemBuilder: (context) {
+                  if (profile.isArchived) {
+                    return [
+                      const PopupMenuItem(
+                        value: 'restore',
+                        child: Row(
+                          children: [
+                            Icon(Icons.unarchive_outlined, size: 18),
+                            SizedBox(width: 8),
+                            Expanded(child: Text('Restore Profile')),
+                          ],
+                        ),
+                      ),
+                    ];
+                  }
+
+                  return [
                     const PopupMenuItem(
-                      value: 'make_primary',
+                      value: 'edit',
                       child: Row(
                         children: [
-                          Icon(Icons.star_outline, size: 18),
+                          Icon(Icons.edit_outlined, size: 18),
                           SizedBox(width: 8),
-                          Text('Mark Primary'),
+                          Expanded(child: Text('Edit Profile')),
                         ],
                       ),
                     ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            size: 18,
-                            color: colorScheme.error,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Delete Profile',
-                            style: TextStyle(color: colorScheme.error),
-                          ),
-                        ],
+                    if (!profile.isPrimary) ...[
+                      const PopupMenuItem(
+                        value: 'archive',
+                        child: Row(
+                          children: [
+                            Icon(Icons.archive_outlined, size: 18),
+                            SizedBox(width: 8),
+                            Expanded(child: Text('Archive Profile')),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ],
+                      PopupMenuItem(
+                        value: 'delete',
+                        enabled: false,
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.shield_outlined,
+                              size: 18,
+                              color: colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.4),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Delete (Protected)',
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant
+                                      .withValues(alpha: 0.4),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ];
+                },
               ),
             ],
           ),
@@ -182,66 +240,259 @@ class FamilyProfileCard extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              if (isActive)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        size: 14,
-                        color: colorScheme.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'ACTIVE PROFILE',
+          if (profile.isArchived)
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.lock_outline,
+                      size: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        'Historical Records Preserved',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTypography.caption.copyWith(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.primary,
+                          fontSize: 11,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
-                    ],
-                  ),
-                )
-              else
-                TextButton(
-                  onPressed: () {
-                    ref
-                        .read(activeProfileProvider.notifier)
-                        .selectProfile(profile);
-                  },
-                  child: const Text('Switch to Profile'),
+                    ),
+                  ],
                 ),
-              OutlinedButton.icon(
-                onPressed: () =>
-                    ProfileFormDialog.show(context, profileToEdit: profile),
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text('Edit'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
+                FilledButton.tonalIcon(
+                  onPressed: () => _confirmRestore(context, ref),
+                  icon: const Icon(Icons.unarchive_outlined, size: 16),
+                  label: const Text('Restore Profile'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                   ),
+                ),
+              ],
+            )
+          else
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (isActive)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          size: 14,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'ACTIVE PROFILE',
+                          style: AppTypography.caption.copyWith(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  TextButton(
+                    onPressed: () {
+                      ref
+                          .read(activeProfileProvider.notifier)
+                          .selectProfile(profile);
+                    },
+                    child: const Text('Switch to Profile'),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      ProfileFormDialog.show(context, profileToEdit: profile),
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Edit'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmArchive(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.archive_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Archive Profile',
+                style: AppTypography.h2.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-            ],
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to archive "${profile.fullName}"?\n\n'
+          '• All historical medical history, consultations, prescriptions, and reports will be safely preserved.\n'
+          '• This profile will be hidden from the active profiles list.\n'
+          '• New consultations or records cannot be added while archived.\n'
+          '• You can restore this profile at any time from the Archived tab.',
+          style: AppTypography.bodyMedium.copyWith(
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Archive'),
           ),
         ],
       ),
     );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref
+            .read(profilesListProvider.notifier)
+            .archiveProfile(profile.profileId);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Profile "${profile.fullName}" archived successfully.',
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to archive profile: $e'),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmRestore(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.unarchive_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Restore Profile',
+                style: AppTypography.h2.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Restore "${profile.fullName}" to the active profiles list?\n\n'
+          'The profile will become available for consultations, appointments, and record management.',
+          style: AppTypography.bodyMedium.copyWith(
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref
+            .read(profilesListProvider.notifier)
+            .restoreProfile(profile.profileId);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Profile "${profile.fullName}" restored successfully.',
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to restore profile: $e'),
+            ),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildInfoChip(BuildContext context, String label) {

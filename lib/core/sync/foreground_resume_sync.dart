@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'sync_lock.dart';
+import 'sync_rollout_config.dart';
+import 'sync_service.dart';
 import '../../features/appointments/presentation/providers/appointment_providers.dart';
 import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../features/consultations/presentation/providers/consultation_providers.dart';
@@ -36,6 +38,27 @@ Future<void> runForegroundResumeSync(ProviderContainer container) async {
     container.read(clinicalCacheRevisionProvider.notifier).bump();
   } catch (_) {}
 
+  // 2. Skip all remote push and pull when remote synchronization is disabled.
+  if (!SyncService.isRemoteSyncEnabled &&
+      !SyncService.isControlledForegroundSyncEnabled) {
+    return;
+  }
+
+  if (SyncRolloutConfig.isGlobalRolloutPaused ||
+      SyncRolloutConfig.isLocalKillSwitchActive) {
+    return;
+  }
+
+  // If remote sync is not enabled globally, verify tester authorization and opt-in
+  final authUser = container.read(authControllerProvider).user;
+  if (!SyncService.isRemoteSyncEnabled) {
+    if (authUser == null ||
+        !SyncService.isEligibleTester(authUser.id) ||
+        !container.read(syncServiceProvider).isTesterOptedIn(authUser.id)) {
+      return;
+    }
+  }
+
   bool online;
   try {
     online = await container
@@ -48,7 +71,10 @@ Future<void> runForegroundResumeSync(ProviderContainer container) async {
 
   // 2. Push first (its own lease; fast no-op when the queue is empty).
   try {
-    await container.read(syncServiceProvider).syncPending();
+    final authUser = container.read(authControllerProvider).user;
+    await container
+        .read(syncServiceProvider)
+        .syncPending(explicitOwnerUserId: authUser?.id);
   } catch (_) {}
 
   final profileId = container.read(activeProfileProvider)?.profileId;

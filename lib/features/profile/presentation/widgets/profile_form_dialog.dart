@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_typography.dart';
@@ -64,12 +64,21 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
     );
     _notesController = TextEditingController(text: p?.notes ?? '');
     _selectedRelationship = p?.relationship ?? ProfileRelationships.father;
-    _selectedGender = p?.gender ?? 'Male';
-    _selectedBloodGroup = p?.bloodGroup ?? 'O+';
+    _selectedGender = p?.gender;
+    _selectedBloodGroup = p?.bloodGroup;
     _isPrimary = p?.isPrimary ?? false;
-    _allergiesConfirmedNone = p?.allergiesConfirmedNone ?? false;
-    _chronicConditionsConfirmedNone =
-        p?.chronicConditionsConfirmedNone ?? false;
+
+    final existingAllergies = p?.allergies ?? const [];
+    final existingConditions = p?.chronicConditions ?? const [];
+
+    // If existing data contains a contradictory list/flag combination,
+    // preserve the entries and normalize the flag to false.
+    _allergiesConfirmedNone = existingAllergies.isNotEmpty
+        ? false
+        : (p?.allergiesConfirmedNone ?? false);
+    _chronicConditionsConfirmedNone = existingConditions.isNotEmpty
+        ? false
+        : (p?.chronicConditionsConfirmedNone ?? false);
 
     if (p?.dateOfBirth != null && p!.dateOfBirth!.isNotEmpty) {
       _selectedDob = DateTime.tryParse(p.dateOfBirth!);
@@ -135,19 +144,30 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
             fullName: _nameController.text.trim(),
             relationship: _selectedRelationship,
             relationshipOther: relOther,
+            clearRelationshipOther: relOther == null,
             gender: _selectedGender,
+            clearGender: _selectedGender == null,
             dateOfBirth: dobStr,
+            clearDateOfBirth: dobStr == null,
             bloodGroup: _selectedBloodGroup,
+            clearBloodGroup: _selectedBloodGroup == null,
             height: parsedHeight,
+            clearHeight: parsedHeight == null,
             weight: parsedWeight,
+            clearWeight: parsedWeight == null,
             isPrimary: _isPrimary,
             notes: _notesController.text.trim().isNotEmpty
                 ? _notesController.text.trim()
                 : null,
+            clearNotes: _notesController.text.trim().isEmpty,
             allergies: widget.profileToEdit!.allergies,
-            allergiesConfirmedNone: _allergiesConfirmedNone,
+            allergiesConfirmedNone:
+                widget.profileToEdit!.allergies.isEmpty &&
+                    _allergiesConfirmedNone,
             chronicConditions: widget.profileToEdit!.chronicConditions,
-            chronicConditionsConfirmedNone: _chronicConditionsConfirmedNone,
+            chronicConditionsConfirmedNone:
+                widget.profileToEdit!.chronicConditions.isEmpty &&
+                    _chronicConditionsConfirmedNone,
           );
           await notifier.updateProfile(updated);
         } else {
@@ -185,7 +205,20 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.profileToEdit != null;
-    final maxSheetHeight = MediaQuery.of(context).size.height * 0.85;
+    final hasExistingAllergies =
+        widget.profileToEdit?.allergies.isNotEmpty ?? false;
+    final hasExistingConditions =
+        widget.profileToEdit?.chronicConditions.isNotEmpty ?? false;
+    final canToggleAllergies = !hasExistingAllergies;
+    final canToggleConditions = !hasExistingConditions;
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+    // Leave room for AppBottomSheet's drag handle, title row, and padding (~100dp)
+    final maxSheetHeight = (availableHeight * 0.68).clamp(
+      200.0,
+      (availableHeight - 110.0).clamp(200.0, 680.0),
+    );
 
     return AppBottomSheet(
       title: isEditing ? 'Edit Profile' : 'Add Family Profile',
@@ -193,6 +226,7 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxSheetHeight),
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 24),
           child: Form(
             key: _formKey,
             child: Column(
@@ -220,6 +254,7 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   initialValue: _selectedRelationship,
+                  isExpanded: true,
                   decoration: InputDecoration(
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -241,6 +276,7 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
                               value: rel,
                               child: Text(
                                 rel,
+                                overflow: TextOverflow.ellipsis,
                                 style: AppTypography.bodyMedium.copyWith(
                                   color: Theme.of(context)
                                       .colorScheme
@@ -287,26 +323,50 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
                   onPickDob: _pickDob,
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomTextField(
-                        label: 'Height (cm)',
-                        hint: 'e.g. 175',
-                        controller: _heightController,
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: CustomTextField(
-                        label: 'Weight (kg)',
-                        hint: 'e.g. 60',
-                        controller: _weightController,
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isTwoColumn = constraints.maxWidth >= 280;
+                    if (isTwoColumn) {
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: CustomTextField(
+                              label: 'Height (cm)',
+                              hint: 'e.g. 175',
+                              controller: _heightController,
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: CustomTextField(
+                              label: 'Weight (kg)',
+                              hint: 'e.g. 60',
+                              controller: _weightController,
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return Column(
+                      children: [
+                        CustomTextField(
+                          label: 'Height (cm)',
+                          hint: 'e.g. 175',
+                          controller: _heightController,
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: 12),
+                        CustomTextField(
+                          label: 'Weight (kg)',
+                          hint: 'e.g. 60',
+                          controller: _weightController,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -323,16 +383,23 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
                   title: Text(
                     'No known allergies',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface,
+                      color: canToggleAllergies
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant
+                              .withValues(alpha: 0.6),
                     ),
                   ),
                   value: _allergiesConfirmedNone,
                   activeColor: Theme.of(context).colorScheme.primary,
-                  onChanged: (val) {
-                    setState(() {
-                      _allergiesConfirmedNone = val ?? false;
-                    });
-                  },
+                  onChanged: canToggleAllergies
+                      ? (val) {
+                          setState(() {
+                            _allergiesConfirmedNone = val ?? false;
+                          });
+                        }
+                      : null,
                 ),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
@@ -340,16 +407,23 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
                   title: Text(
                     'No chronic conditions',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface,
+                      color: canToggleConditions
+                          ? Theme.of(context).colorScheme.onSurface
+                          : Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant
+                              .withValues(alpha: 0.6),
                     ),
                   ),
                   value: _chronicConditionsConfirmedNone,
                   activeColor: Theme.of(context).colorScheme.primary,
-                  onChanged: (val) {
-                    setState(() {
-                      _chronicConditionsConfirmedNone = val ?? false;
-                    });
-                  },
+                  onChanged: canToggleConditions
+                      ? (val) {
+                          setState(() {
+                            _chronicConditionsConfirmedNone = val ?? false;
+                          });
+                        }
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 CustomTextField(
@@ -357,31 +431,7 @@ class _ProfileFormDialogState extends ConsumerState<ProfileFormDialog> {
                   hint: 'Known allergies, medical conditions, etc.',
                   controller: _notesController,
                 ),
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Mark as Primary Profile',
-                    style: AppTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Default profile loaded upon opening MediCrate',
-                    style: AppTypography.caption.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  value: _isPrimary,
-                  activeThumbColor: Theme.of(context).colorScheme.primary,
-                  onChanged: (val) {
-                    setState(() {
-                      _isPrimary = val;
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 PrimaryButton(
                   text: isEditing ? 'Save Changes' : 'Create Profile',
                   isLoading: _isSubmitting,

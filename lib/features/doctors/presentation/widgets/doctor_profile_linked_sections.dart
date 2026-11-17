@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/routes/app_routes.dart';
@@ -21,10 +21,10 @@ class DoctorProfileHospitalsSection extends ConsumerWidget {
 
     return doctorHospitalsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, stack) => _buildLegacyHospitalFallback(doctor),
+      error: (err, stack) => _buildHospitalFallback(doctor),
       data: (practicingList) {
         if (practicingList.isEmpty) {
-          return _buildLegacyHospitalFallback(doctor);
+          return _buildHospitalFallback(doctor);
         }
         return Column(
           children: practicingList
@@ -62,10 +62,10 @@ class DoctorProfileHospitalsSection extends ConsumerWidget {
     );
   }
 
-  Widget _buildLegacyHospitalFallback(DoctorModel doctor) {
-    final legacyName = doctor.hospitalName;
+  Widget _buildHospitalFallback(DoctorModel doctor) {
+    final fallbackName = doctor.hospitalName;
     return DetailNoteBox(
-      notes: (legacyName != null && legacyName.isNotEmpty) ? legacyName : null,
+      notes: (fallbackName != null && fallbackName.isNotEmpty) ? fallbackName : null,
       fallbackText: 'No affiliated hospitals recorded.',
     );
   }

@@ -1,28 +1,29 @@
 import 'dart:async';
 
-import '../../../../core/api/list_pull_support.dart';
 import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/storage/hive_service.dart';
+import '../../../../core/supabase/supabase_config.dart';
 import '../../../../core/sync/models/sync_queue_item.dart';
 import '../../../../core/sync/pending_mutation_guard.dart';
+import '../../../../core/sync/pulled_record_comparison.dart';
 import '../../../../core/sync/sync_service.dart';
 import '../../../../core/utils/id_utils.dart';
 import '../../../hospitals/data/repositories/hospital_repository.dart';
-import '../datasources/remote/doctor_remote_data_source.dart';
+import '../datasources/remote/supabase_doctor_remote_data_source.dart';
 import '../models/doctor_hospital_relation.dart';
 import '../models/doctor_model.dart';
 import 'doctor_dependency_helper.dart';
 
 /// DoctorRepository manages profile-associated doctor directories with offline-first Hive caching
-/// and REST API synchronization (D1 - D5).
+/// and Supabase synchronization.
 class DoctorRepository {
   final HiveService hiveService;
-  final DoctorRemoteDataSource? remoteDataSource;
+  final SupabaseDoctorRemoteDataSource? supabaseRemoteDataSource;
   final ConnectivityService? connectivityService;
   final SyncService? syncService;
 
-  /// Post-pull freshness signal (Phase 3): invoked once, after the Hive merge,
+  /// Post-pull freshness signal: invoked once, after the Hive merge,
   /// only when a pull actually changed local state. Wired by the repository
   /// provider to bump `clinicalCacheRevisionProvider`.
   final void Function()? onPullMerged;
@@ -30,17 +31,13 @@ class DoctorRepository {
   late final DoctorDependencyHelper _dependencyHelper;
   final Map<String, Future<void>> _inFlightPulls = {};
 
-  /// Whether the last completed pull retrieved the full server dataset
-  /// (`received >= data.total`). `false` means the server capped `limit` below
-  /// `total`; callers must treat the result as partial. Exposed for tests.
-  bool lastPullComplete = true;
-
   DoctorRepository({
     required this.hiveService,
-    this.remoteDataSource,
+    this.supabaseRemoteDataSource,
     this.connectivityService,
     this.syncService,
     this.onPullMerged,
+    dynamic remoteDataSource,
   }) {
     _dependencyHelper = DoctorDependencyHelper(hiveService: hiveService);
   }
@@ -49,6 +46,110 @@ class DoctorRepository {
   String _normalizeDoctorId(String rawId) {
     if (rawId.startsWith('doctor_')) return rawId;
     return 'doctor_$rawId';
+  }
+
+  String? _resolveCurrentUserId([String? explicitOwnerUserId]) {
+    if (explicitOwnerUserId != null && explicitOwnerUserId.trim().isNotEmpty) {
+      return explicitOwnerUserId.trim();
+    }
+    try {
+      if (SupabaseConfig.isInitialized) {
+        final sessionUid = SupabaseConfig.client.auth.currentUser?.id;
+        if (sessionUid != null && sessionUid.trim().isNotEmpty) {
+          return sessionUid.trim();
+        }
+      }
+    } catch (_) {}
+    try {
+      final userMap = hiveService.authBox.get('current_user');
+      if (userMap is Map) {
+        final id = (userMap['id'] ?? userMap['user_id'] ?? userMap['userId'])
+            ?.toString();
+        if (id != null && id.trim().isNotEmpty) {
+          return id.trim();
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String? _resolveProfileUuid(String profileId, String ownerUserId) {
+    final clean = IdUtils.unprefix(profileId).trim();
+    try {
+      final box = hiveService.profileBox;
+      final raw =
+          box.get(profileId) ?? box.get(clean) ?? box.get('prof_$clean');
+      Map? direct;
+      if (raw is Map) {
+        direct = raw;
+      } else {
+        for (final val in box.values) {
+          final pid = (val['profile_id'] ?? val['id'])?.toString();
+          if (pid != null &&
+              (pid == profileId ||
+                  pid == clean ||
+                  IdUtils.matchesProfileId(pid, profileId))) {
+            direct = val;
+            break;
+          }
+        }
+      }
+      if (direct != null) {
+        final profileOwner = (direct['owner_user_id'] ??
+                direct['user_id'] ??
+                direct['userId'])
+            ?.toString();
+        if (profileOwner != null && profileOwner != ownerUserId) {
+          return null;
+        }
+        final resolvedUuid =
+            (direct['id'] ?? direct['profile_id'])?.toString();
+        if (resolvedUuid != null &&
+            UuidUtils.isValidUuid(IdUtils.unprefix(resolvedUuid))) {
+          return IdUtils.unprefix(resolvedUuid);
+        }
+      }
+    } catch (_) {}
+    if (UuidUtils.isValidUuid(clean)) {
+      return clean;
+    }
+    return null;
+  }
+
+  Future<void> _cleanupSyncQueue(
+    String key,
+    String? rawId,
+    String? clientUuid,
+  ) async {
+    try {
+      final syncBox = hiveService.syncQueueBox;
+      final keysToDelete = <dynamic>[];
+      for (final entry in syncBox.toMap().entries) {
+        final val = entry.value;
+        final entity = val['entity']?.toString().toLowerCase();
+        if (entity == 'doctors' || entity == 'doctor') {
+          final p = val['payload'];
+          if (p is Map) {
+            final pUuid =
+                p['client_uuid']?.toString() ?? p['clientUuid']?.toString();
+            final pId = p['id']?.toString();
+            if ((clientUuid != null &&
+                    clientUuid.isNotEmpty &&
+                    pUuid == clientUuid) ||
+                (pId != null &&
+                    (pId == key ||
+                        pId == rawId ||
+                        pId == IdUtils.unprefix(key) ||
+                        (rawId != null && pId == IdUtils.unprefix(rawId))))) {
+              keysToDelete.add(entry.key);
+            }
+          }
+        }
+      }
+      for (final k in keysToDelete) {
+        await syncBox.delete(k);
+      }
+    } catch (_) {}
   }
 
   /// Retrieves raw maps for doctors belonging to [profileId].
@@ -143,7 +244,7 @@ class DoctorRepository {
   /// and dispatches a non-blocking background pull-sync when online.
   Future<List<DoctorModel>> getDoctorModels(String profileId) async {
     // 1. Dispatch background pull-sync asynchronously (unawaited)
-    if (remoteDataSource != null) {
+    if (supabaseRemoteDataSource != null) {
       unawaited(pullDoctors(profileId));
     }
 
@@ -154,14 +255,24 @@ class DoctorRepository {
 
   /// Performs background pull-sync for doctors belonging to [profileId]
   /// and merges server records into Hive cache.
-  Future<void> pullDoctors(String profileId) {
-    if (remoteDataSource == null) return Future.value();
+  Future<void> pullDoctors(
+    String profileId, {
+    String? ownerUserId,
+    String? explicitOwnerUserId,
+  }) {
+    if (supabaseRemoteDataSource == null) {
+      return Future.value();
+    }
     final existing = _inFlightPulls[profileId];
     if (existing != null) {
       return existing;
     }
 
-    final future = _executePullDoctors(profileId);
+    final future = _executePullDoctors(
+      profileId,
+      ownerUserId: ownerUserId,
+      explicitOwnerUserId: explicitOwnerUserId,
+    );
     _inFlightPulls[profileId] = future;
     future.whenComplete(() {
       if (identical(_inFlightPulls[profileId], future)) {
@@ -171,170 +282,87 @@ class DoctorRepository {
     return future;
   }
 
-  Future<void> _executePullDoctors(String profileId) async {
-    if (SyncService.isRemotePushSuspended) return;
-    try {
-      final numericProfileId = IdUtils.resolveServerProfileId(
-        profileBox: hiveService.profileBox,
-        profileId: profileId,
-      );
-      if (numericProfileId == null) return;
+  Future<void> _executePullDoctors(
+    String profileId, {
+    String? ownerUserId,
+    String? explicitOwnerUserId,
+  }) async {
+    if (supabaseRemoteDataSource != null) {
+      final effectiveOwnerUserId =
+          _resolveCurrentUserId(ownerUserId ?? explicitOwnerUserId);
+      if (effectiveOwnerUserId == null || effectiveOwnerUserId.isEmpty) return;
+
+      final profileUuid = _resolveProfileUuid(profileId, effectiveOwnerUserId);
+      if (profileUuid == null || profileUuid.isEmpty) return;
 
       final isOnline = connectivityService != null
           ? await connectivityService!.checkConnectivity()
           : true;
-
       if (!isOnline) return;
 
-      final remoteList = await fetchCompleteList(
-        (limit, onTotal) => remoteDataSource!.fetchDoctors(
-          profileId: numericProfileId,
-          limit: limit,
-          onTotal: onTotal,
-        ),
-        onComplete: (c) => lastPullComplete = c,
-      );
-      final box = hiveService.userBox;
-      var pulledChanged = false;
+      try {
+        final remoteList = await supabaseRemoteDataSource!.fetchDoctors(
+          ownerUserId: effectiveOwnerUserId,
+          profileId: profileUuid,
+        );
 
-      for (final raw in remoteList) {
-        final remoteModel = DoctorModel.fromJson(raw);
-        final cleanId = remoteModel.id.isNotEmpty
-            ? remoteModel.id
-            : (raw['id']?.toString() ?? '');
-        final id = _normalizeDoctorId(cleanId);
+        if (remoteList.isNotEmpty) {
+          final box = hiveService.userBox;
+          var pulledChanged = false;
+          for (final model in remoteList) {
+            final key = _normalizeDoctorId(model.id);
 
-        // Guard against overwriting pending local mutations (I2-C2)
-        if (PendingMutationGuard.hasPendingMutation(
-          syncQueueBox: hiveService.syncQueueBox,
-          profileBox: hiveService.profileBox,
-          entity: 'doctor',
-          profileId: profileId,
-          remoteId: id,
-          clientUuid: remoteModel.clientUuid,
-        )) {
-          continue;
-        }
-
-        // Search for existing local entry by key, un-prefixed key, clientUuid, or matching name
-        dynamic matchingKey;
-        Map<String, dynamic>? existingMap;
-
-        final directMatch = box.get(id) ?? box.get(cleanId);
-        if (directMatch is Map) {
-          matchingKey = box.containsKey(id) ? id : cleanId;
-          existingMap = Map<String, dynamic>.from(directMatch);
-        } else {
-          for (final k in box.keys) {
-            final kStr = k.toString();
-            if (kStr.startsWith('doctor_')) {
-              final val = box.get(k);
-              if (val is Map) {
-                final prof = (val['profile_id'] ?? val['profileId'])
-                    ?.toString();
-                if (IdUtils.matchesProfileId(
-                  prof,
-                  profileId,
-                  profileBox: hiveService.profileBox,
-                )) {
-                  final u =
-                      val['client_uuid']?.toString() ??
-                      val['clientUuid']?.toString();
-                  final n = val['name']?.toString().trim().toLowerCase();
-                  final isTemporaryLocal =
-                      IdUtils.toServerIntId(IdUtils.unprefix(kStr)) == null;
-
-                  if (remoteModel.clientUuid != null &&
-                      u != null &&
-                      u == remoteModel.clientUuid) {
-                    matchingKey = k;
-                    existingMap = Map<String, dynamic>.from(val);
-                    break;
-                  } else if (isTemporaryLocal &&
-                      n != null &&
-                      n == remoteModel.name.trim().toLowerCase()) {
-                    matchingKey = k;
-                    existingMap = Map<String, dynamic>.from(val);
-                    break;
-                  }
-                }
-              }
+            if (PendingMutationGuard.hasPendingMutation(
+              syncQueueBox: hiveService.syncQueueBox,
+              profileBox: hiveService.profileBox,
+              entity: 'doctor',
+              profileId: profileId,
+              remoteId: key,
+              clientUuid: model.clientUuid,
+            )) {
+              continue;
             }
+
+            final existingRaw = box.get(key) ?? box.get(model.id);
+            String? existingUuid;
+            if (existingRaw is Map) {
+              existingUuid =
+                  existingRaw['client_uuid']?.toString() ??
+                  existingRaw['clientUuid']?.toString();
+            }
+
+            final merged = model.copyWith(
+              id: key,
+              profileId: profileId,
+              clientUuid: existingUuid ?? model.clientUuid,
+            );
+            final encoded = merged.toJson();
+            if (pulledRecordChanged(box.get(key), encoded)) pulledChanged = true;
+            await box.put(key, encoded);
+          }
+
+          if (pulledChanged) {
+            try {
+              onPullMerged?.call();
+            } catch (_) {}
           }
         }
-
-        DoctorModel merged = remoteModel.copyWith(id: id, profileId: profileId);
-
-        if (existingMap != null) {
-          final existingModel = DoctorModel.fromJson(existingMap);
-          merged = merged.copyWith(
-            hospitalIds: merged.hospitalIds.isNotEmpty
-                ? merged.hospitalIds
-                : existingModel.hospitalIds,
-            notes: (merged.notes != null && merged.notes!.isNotEmpty)
-                ? merged.notes
-                : existingModel.notes,
-            clientUuid: existingModel.clientUuid ?? remoteModel.clientUuid,
-          );
-
-          if (matchingKey != null && matchingKey.toString() != id) {
-            final oldKeyStr = matchingKey.toString();
-            final oldIdStr = IdUtils.unprefix(oldKeyStr);
-            await box.delete(matchingKey);
-            await box.delete(oldIdStr);
-
-            // Re-point consultation doctor references in userBox
-            final serverIntId = IdUtils.toServerIntId(IdUtils.unprefix(id));
-            for (final cKey in box.keys) {
-              final cKeyStr = cKey.toString();
-              if (cKeyStr.startsWith('consultation_') ||
-                  cKeyStr.startsWith('con_')) {
-                final cVal = box.get(cKey);
-                if (cVal is Map) {
-                  final cMap = Map<String, dynamic>.from(cVal);
-                  final cProf = (cMap['profile_id'] ?? cMap['profileId'])
-                      ?.toString();
-                  if (IdUtils.matchesProfileId(
-                    cProf,
-                    profileId,
-                    profileBox: hiveService.profileBox,
-                  )) {
-                    final cDoc =
-                        cMap['doctor_id']?.toString() ??
-                        cMap['doctorId']?.toString();
-                    if (cDoc == oldKeyStr ||
-                        cDoc == oldIdStr ||
-                        IdUtils.matches(cDoc, oldKeyStr)) {
-                      cMap['doctor_id'] = serverIntId ?? id;
-                      await box.put(cKey, cMap);
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        final encoded = merged.toJson();
-        if (pulledRecordChanged(box.get(id), encoded)) pulledChanged = true;
-        await box.put(id, encoded);
+      } catch (_) {
+        // Fallback gracefully without calling legacy
+      } finally {
+        _inFlightPulls.remove(profileId);
       }
-
-      if (pulledChanged) {
-        try {
-          onPullMerged?.call();
-        } catch (_) {}
-      }
-    } catch (_) {
-      // Fallback gracefully to local Hive cache on remote error / offline
-    } finally {
-      _inFlightPulls.remove(profileId);
     }
   }
 
   /// Strictly profile-scoped doctor lookup by [doctorId] (D3).
   /// Returns null if doctor does not exist or belongs to another profile.
-  Future<DoctorModel?> getDoctorById(String profileId, String doctorId) async {
+  Future<DoctorModel?> getDoctorById(
+    String profileId,
+    String doctorId, {
+    String? ownerUserId,
+    String? explicitOwnerUserId,
+  }) async {
     final key = _normalizeDoctorId(doctorId);
     final box = hiveService.userBox;
     var val =
@@ -352,6 +380,33 @@ class DoctorRepository {
         return DoctorModel.fromJson(map);
       }
     }
+
+    if (supabaseRemoteDataSource != null) {
+      final effectiveOwnerUserId =
+          _resolveCurrentUserId(ownerUserId ?? explicitOwnerUserId);
+      if (effectiveOwnerUserId != null && effectiveOwnerUserId.isNotEmpty) {
+        final profileUuid =
+            _resolveProfileUuid(profileId, effectiveOwnerUserId);
+        if (profileUuid != null && profileUuid.isNotEmpty) {
+          try {
+            final remoteDoc = await supabaseRemoteDataSource!.getDoctorById(
+              doctorId: IdUtils.unprefix(doctorId),
+              ownerUserId: effectiveOwnerUserId,
+              profileId: profileUuid,
+            );
+            if (remoteDoc != null) {
+              final cachedModel = remoteDoc.copyWith(
+                id: key,
+                profileId: profileId,
+              );
+              await box.put(key, cachedModel.toJson());
+              return cachedModel;
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
     final rawList = await getDoctorsRaw(profileId);
     final all = rawList.map((m) => DoctorModel.fromJson(m)).toList();
     try {
@@ -366,8 +421,10 @@ class DoctorRepository {
   /// Saves a doctor map into Hive for [profileId].
   Future<Map<String, dynamic>> saveDoctor(
     String profileId,
-    Map<String, dynamic> data,
-  ) async {
+    Map<String, dynamic> data, {
+    String? ownerUserId,
+    String? explicitOwnerUserId,
+  }) async {
     final rawId =
         data['id'] ?? 'doctor_${DateTime.now().microsecondsSinceEpoch}';
     final id = _normalizeDoctorId(rawId.toString());
@@ -400,8 +457,10 @@ class DoctorRepository {
   /// Strictly filters [hospitalIds] to prevent cross-profile hospital linkage.
   Future<DoctorModel> saveDoctorModel(
     String profileId,
-    DoctorModel doctor,
-  ) async {
+    DoctorModel doctor, {
+    String? ownerUserId,
+    String? explicitOwnerUserId,
+  }) async {
     final rawId = doctor.id.isNotEmpty
         ? doctor.id
         : 'doctor_${DateTime.now().microsecondsSinceEpoch}';
@@ -458,76 +517,96 @@ class DoctorRepository {
 
     await box.put(id, payload);
 
-    final cleanId = IdUtils.unprefix(doctor.id);
-    final isNumericServerId = int.tryParse(cleanId) != null;
+    final cleanId = IdUtils.unprefix(doctor.id).trim();
+    final isNew = cleanId.isEmpty || !UuidUtils.isValidUuid(cleanId);
 
-    bool syncedRemotely = false;
-    if (remoteDataSource != null && !SyncService.isRemotePushSuspended) {
-      final isOnline = connectivityService != null
-          ? await connectivityService!.checkConnectivity()
-          : true;
+    if (supabaseRemoteDataSource != null) {
+      final effectiveOwnerUserId =
+          _resolveCurrentUserId(ownerUserId ?? explicitOwnerUserId);
+      final profileUuid = effectiveOwnerUserId != null
+          ? _resolveProfileUuid(profileId, effectiveOwnerUserId)
+          : null;
 
-      if (isOnline) {
-        final apiPayload = updated.toApiJson(
-          resolvedHospitalName: resolvedHospitalName,
-        );
-        try {
-          if (isNumericServerId) {
-            // D4: Update Doctor (POST /doctors/{id})
-            final remoteRes = await remoteDataSource!.updateDoctor(
-              cleanId,
-              apiPayload,
-            );
-            final serverDoctor = DoctorModel.fromJson(remoteRes);
-            updated = updated.copyWith(
-              name: serverDoctor.name,
-              specialty: serverDoctor.specialty,
-              phone: serverDoctor.phone ?? updated.phone,
-              email: serverDoctor.email ?? updated.email,
-              hospitalName: serverDoctor.hospitalName ?? updated.hospitalName,
-            );
-            await box.put(id, updated.toJson());
-            syncedRemotely = true;
-          } else {
-            // D2: Add Doctor (POST /doctors)
-            final remoteRes = await remoteDataSource!.addDoctor(apiPayload);
-            final serverDoctor = DoctorModel.fromJson(remoteRes);
-            final serverRawId = serverDoctor.id.isNotEmpty
-                ? serverDoctor.id
-                : (remoteRes['id']?.toString() ?? '');
+      if (effectiveOwnerUserId != null && profileUuid != null) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
 
-            if (serverRawId.isNotEmpty) {
-              final newId = _normalizeDoctorId(serverRawId);
-              if (newId != id) {
+        if (isOnline) {
+          try {
+            if (isNew) {
+              final created = await supabaseRemoteDataSource!.createDoctor(
+                doctor: updated.copyWith(profileId: profileUuid),
+                ownerUserId: effectiveOwnerUserId,
+                profileId: profileUuid,
+              );
+              final newKey = _normalizeDoctorId(created.id);
+              if (newKey != id) {
                 await box.delete(id);
                 await box.delete(rawId);
               }
-              updated = updated.copyWith(
-                id: newId,
-                name: serverDoctor.name,
-                specialty: serverDoctor.specialty,
-                phone: serverDoctor.phone ?? updated.phone,
-                email: serverDoctor.email ?? updated.email,
-                hospitalName: serverDoctor.hospitalName ?? updated.hospitalName,
+              final savedModel = created.copyWith(
+                id: newKey,
+                profileId: profileId,
+                clientUuid: clientUuid,
+                hospitalIds: sanitizedHospitalIds,
+                hospitalName: resolvedHospitalName,
               );
-              await box.put(newId, updated.toJson());
-              syncedRemotely = true;
+              await box.put(newKey, savedModel.toJson());
+              await _cleanupSyncQueue(newKey, created.id, clientUuid);
+              return savedModel;
+            } else {
+              final updatedRemote = await supabaseRemoteDataSource!.updateDoctor(
+                doctor: updated.copyWith(id: cleanId, profileId: profileUuid),
+                ownerUserId: effectiveOwnerUserId,
+                profileId: profileUuid,
+              );
+              final savedModel = updatedRemote.copyWith(
+                id: id,
+                profileId: profileId,
+                clientUuid: clientUuid,
+                hospitalIds: sanitizedHospitalIds,
+                hospitalName: resolvedHospitalName,
+              );
+              await box.put(id, savedModel.toJson());
+              await _cleanupSyncQueue(id, cleanId, clientUuid);
+              return savedModel;
+            }
+          } catch (e) {
+            if (syncService != null) {
+              await syncService!.addToQueue(
+                SyncQueueItem(
+                  id: 'sync_doc_${DateTime.now().microsecondsSinceEpoch}',
+                  entity: 'doctor',
+                  operation: isNew ? 'create' : 'update',
+                  payload: updated.toJson(),
+                ),
+              );
             }
           }
-        } catch (_) {
-          // On any network or server error, fall back gracefully to offline queueing
-          syncedRemotely = false;
+        } else {
+          if (syncService != null) {
+            await syncService!.addToQueue(
+              SyncQueueItem(
+                id: 'sync_doc_${DateTime.now().microsecondsSinceEpoch}',
+                entity: 'doctor',
+                operation: isNew ? 'create' : 'update',
+                payload: updated.toJson(),
+              ),
+            );
+          }
         }
       }
+      return updated;
     }
 
-    if (!syncedRemotely && syncService != null) {
+    if (syncService != null) {
       await syncService!.addToQueue(
         SyncQueueItem(
-          id: 'sync_doc_${DateTime.now().millisecondsSinceEpoch}',
-          entity: 'doctors',
-          operation: isNumericServerId ? 'update' : 'create',
-          payload: payload,
+          id: 'sync_doc_${DateTime.now().microsecondsSinceEpoch}',
+          entity: 'doctor',
+          operation: isNew ? 'create' : 'update',
+          payload: updated.toJson(),
         ),
       );
     }
@@ -559,7 +638,12 @@ class DoctorRepository {
 
   /// Deletes a doctor by [doctorId] for [profileId] if there are no dependencies (D5).
   /// Throws [ResourceHasDependenciesException] if dependencies exist.
-  Future<void> deleteDoctor(String profileId, String doctorId) async {
+  Future<void> deleteDoctor(
+    String profileId,
+    String doctorId, {
+    String? ownerUserId,
+    String? explicitOwnerUserId,
+  }) async {
     final key = _normalizeDoctorId(doctorId);
     final box = hiveService.userBox;
     final val = box.get(key) ?? box.get(doctorId);
@@ -581,38 +665,58 @@ class DoctorRepository {
     // 1. Delete from local Hive first
     await box.delete(key);
     await box.delete(doctorId);
+    final cleanId = IdUtils.unprefix(doctorId).trim();
+    await box.delete(cleanId);
+    final isNumericServerId = IdUtils.toServerIntId(cleanId) != null;
 
-    final cleanId = IdUtils.unprefix(doctorId);
-    final isNumericServerId = int.tryParse(cleanId) != null;
+    if (supabaseRemoteDataSource != null) {
+      final effectiveOwnerUserId =
+          _resolveCurrentUserId(ownerUserId ?? explicitOwnerUserId);
+      final profileUuid = effectiveOwnerUserId != null
+          ? _resolveProfileUuid(profileId, effectiveOwnerUserId)
+          : null;
 
-    bool deletedRemotely = false;
-    if (remoteDataSource != null &&
-        !SyncService.isRemotePushSuspended &&
-        isNumericServerId) {
-      final isOnline = connectivityService != null
-          ? await connectivityService!.checkConnectivity()
-          : true;
+      if (effectiveOwnerUserId != null && profileUuid != null) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
 
-      if (isOnline) {
-        try {
-          await remoteDataSource!.deleteDoctor(cleanId);
-          deletedRemotely = true;
-        } catch (_) {
-          deletedRemotely = false;
+        if (isOnline) {
+          try {
+            await supabaseRemoteDataSource!.deleteDoctor(
+              doctorId: cleanId,
+              ownerUserId: effectiveOwnerUserId,
+              profileId: profileUuid,
+            );
+          } catch (_) {}
+        } else {
+          if (syncService != null) {
+            await syncService!.addToQueue(
+              SyncQueueItem(
+                id: 'sync_doc_del_${DateTime.now().microsecondsSinceEpoch}',
+                entity: 'doctor',
+                operation: 'delete',
+                payload: {'id': cleanId, 'profile_id': profileId},
+              ),
+            );
+          }
         }
       }
+      await _cleanupSyncQueue(key, cleanId, null);
+      return;
     }
 
-    if (!deletedRemotely && syncService != null && isNumericServerId) {
+    if (syncService != null) {
       await syncService!.addToQueue(
         SyncQueueItem(
-          id: 'sync_doc_del_${DateTime.now().millisecondsSinceEpoch}',
-          entity: 'doctors',
+          id: 'sync_doc_del_${DateTime.now().microsecondsSinceEpoch}',
+          entity: 'doctor',
           operation: 'delete',
           payload: {'id': cleanId, 'profile_id': profileId},
         ),
       );
     }
+    await _cleanupSyncQueue(key, cleanId, null);
 
     // If local-only entity is deleted, remove any pending create/update queue items
     if (!isNumericServerId) {

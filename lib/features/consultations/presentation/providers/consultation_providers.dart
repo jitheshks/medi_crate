@@ -19,28 +19,31 @@ import '../../../doctors/data/models/doctor_hospital_relation.dart';
 import '../../../doctors/presentation/providers/doctors_providers.dart';
 import '../../../hospitals/presentation/providers/hospitals_providers.dart';
 import '../../../timeline/presentation/providers/timeline_providers.dart';
-import '../../data/datasources/remote/consultation_remote_data_source.dart';
+import '../../../../shared/attachments/presentation/providers/attachment_upload_provider.dart';
+import '../../data/datasources/remote/supabase_consultation_remote_data_source.dart';
 import '../../data/models/consultation_model.dart';
 import '../../data/repositories/consultation_repository.dart';
 
 export 'consultation_form_providers.dart';
 
-final consultationRemoteDataSourceProvider =
-    Provider<ConsultationRemoteDataSource>((ref) {
-      final apiClient = ref.watch(apiClientProvider);
-      return ConsultationRemoteDataSource(apiClient: apiClient);
-    });
+final supabaseConsultationRemoteDataSourceProvider =
+    Provider<SupabaseConsultationRemoteDataSource>((ref) {
+  return SupabaseConsultationRemoteDataSource();
+});
 
 final consultationRepositoryProvider = Provider<ConsultationRepository>((ref) {
   final hive = ref.watch(hiveServiceProvider);
   final syncService = ref.watch(syncServiceProvider);
-  final remoteDataSource = ref.watch(consultationRemoteDataSourceProvider);
+  final supabaseRemoteDataSource =
+      ref.watch(supabaseConsultationRemoteDataSourceProvider);
   final connectivity = ref.watch(connectivityServiceProvider);
+  final storageService = ref.watch(supabaseStorageServiceProvider);
   return ConsultationRepository(
     hiveService: hive,
     syncService: syncService,
-    remoteDataSource: remoteDataSource,
+    supabaseRemoteDataSource: supabaseRemoteDataSource,
     connectivityService: connectivity,
+    storageService: storageService,
     onPullMerged: () {
       try {
         ref.read(clinicalCacheRevisionProvider.notifier).bump();

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../shared/widgets/feedback/app_empty_state.dart';
 import 'profile_form_dialog.dart';

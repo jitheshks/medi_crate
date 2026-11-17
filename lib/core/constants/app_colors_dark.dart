@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// AppColorsDark defines the dark theme color palette for MediCrate
 /// as specified in Theme_Design_System.md §4.

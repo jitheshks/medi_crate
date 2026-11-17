@@ -89,12 +89,36 @@ class QueueCoalescer {
 
     final frozen = matches.where(isFrozen).toList();
     final stale = matches.where((e) => !isFrozen(e)).toList();
+    final op = incoming.operation.toLowerCase();
 
-    if (frozen.isNotEmpty && stale.isEmpty) {
-      // Something for this entity is being sent right now. Append the new
-      // mutation untouched; the next pass folds it once the in-flight item
-      // resolves. Never lose it, never disturb the running request.
-      return CoalesceResult(putKey: incoming.id, putItem: incoming);
+    if (frozen.isNotEmpty) {
+      if (op == 'delete') {
+        // An operation (e.g. CREATE or UPDATE) is currently in-flight.
+        // We MUST NEVER cancel an in-flight CREATE just because a DELETE arrives!
+        // Preserve the incoming DELETE so it can execute once the in-flight CREATE
+        // is confirmed and its server ID is available.
+        final staleWrites = stale
+            .where((e) => e.item.operation.toLowerCase() != 'delete')
+            .toList();
+        final payload = Map<String, dynamic>.from(incoming.payload);
+        final uuid = _clientUuid(incoming) ??
+            (staleWrites.isNotEmpty ? _clientUuid(staleWrites.first.item) : null) ??
+            (frozen.isNotEmpty ? _clientUuid(frozen.first.item) : null);
+        if (uuid != null) payload['client_uuid'] = uuid;
+        payload['_needs_server_id'] = true;
+
+        return CoalesceResult(
+          keysToDelete: staleWrites.map((e) => e.key).toList(),
+          putKey: incoming.id,
+          putItem: incoming.copyWith(payload: payload),
+        );
+      }
+      if (stale.isEmpty) {
+        // Something for this entity is being sent right now. Append the new
+        // mutation untouched; the next pass folds it once the in-flight item
+        // resolves. Never lose it, never disturb the running request.
+        return CoalesceResult(putKey: incoming.id, putItem: incoming);
+      }
     }
 
     final reachedServer =
@@ -102,8 +126,6 @@ class QueueCoalescer {
         _reached(incoming) ||
         stale.any((e) => _reached(e.item)) ||
         resolvedServerId != null;
-
-    final op = incoming.operation.toLowerCase();
 
     // ---- incoming: create / update ----------------------------------------
     if (op == 'create' || op == 'update') {
@@ -124,7 +146,20 @@ class QueueCoalescer {
         );
       }
 
-      final mergedOp = reachedServer ? 'update' : 'create';
+      final hasPendingCreate = stale.any(
+        (e) =>
+            e.item.operation.toLowerCase() == 'create' &&
+            !_reached(e.item),
+      );
+
+      final String mergedOp;
+      if (hasPendingCreate && !reachedServer) {
+        mergedOp = 'create';
+      } else if (reachedServer || op == 'update') {
+        mergedOp = 'update';
+      } else {
+        mergedOp = 'create';
+      }
       final mergedPayload = _withBestId(
         Map<String, dynamic>.from(incoming.payload),
         stale,
@@ -286,11 +321,16 @@ class QueueCoalescer {
 
   static bool _reached(SyncQueueItem i) {
     if (IdUtils.toServerIntId(i.payload['id']) != null) return true;
+    if (UuidUtils.isValidUuid(i.payload['id']?.toString())) return true;
     if (IdUtils.toServerIntId(i.payload['server_id']) != null) return true;
+    if (UuidUtils.isValidUuid(i.payload['server_id']?.toString())) return true;
     if (IdUtils.toServerIntId(i.payload['server_profile_id']) != null) {
       return true;
     }
-    return i.operation.toLowerCase() == 'update';
+    if (UuidUtils.isValidUuid(i.payload['server_profile_id']?.toString())) {
+      return true;
+    }
+    return false;
   }
 
   static int? _bestServerId(

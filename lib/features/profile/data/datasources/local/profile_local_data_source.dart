@@ -7,9 +7,11 @@ class ProfileLocalDataSource {
 
   ProfileLocalDataSource({required this.hiveService});
 
-  static const String _activeProfileIdKey = 'active_profile_id';
 
-  Future<List<ProfileModel>> getProfilesForUser(String ownerUserId) async {
+  Future<List<ProfileModel>> getProfilesForUser(
+    String ownerUserId, {
+    bool includeArchived = false,
+  }) async {
     // Option D isolation requirement: Never expose all profiles when ownerUserId is empty
     if (ownerUserId.trim().isEmpty) {
       return [];
@@ -24,7 +26,9 @@ class ProfileLocalDataSource {
         final map = Map<String, dynamic>.from(raw);
         final profile = ProfileModel.fromMap(map);
         if (profile.ownerUserId == ownerUserId.trim()) {
-          profiles.add(profile);
+          if (includeArchived || !profile.isArchived) {
+            profiles.add(profile);
+          }
         }
       }
     }
@@ -38,11 +42,23 @@ class ProfileLocalDataSource {
     return profiles;
   }
 
-  Future<ProfileModel?> getProfileById(String profileId) async {
+  Future<ProfileModel?> getProfileById(
+    String profileId, {
+    required String ownerUserId,
+  }) async {
+    final trimmedOwner = ownerUserId.trim();
+    final trimmedId = profileId.trim();
+    if (trimmedOwner.isEmpty || trimmedId.isEmpty) return null;
+
     final box = hiveService.profileBox;
-    final raw = box.get(profileId);
+    final raw = box.get(trimmedId);
     if (raw == null) return null;
-    return ProfileModel.fromMap(Map<String, dynamic>.from(raw));
+
+    final profile = ProfileModel.fromMap(Map<String, dynamic>.from(raw));
+    if (profile.ownerUserId != trimmedOwner) {
+      return null;
+    }
+    return profile;
   }
 
   Future<ProfileModel?> getProfileByServerId(
@@ -118,29 +134,169 @@ class ProfileLocalDataSource {
     await box.delete(profileId);
   }
 
-  String? getActiveProfileIdSync() {
-    final box = hiveService.userBox;
-    final raw = box.get(_activeProfileIdKey);
+  static const String _legacyActiveProfileIdKey = 'active_profile_id';
+
+  static String _activeProfileIdKey(String ownerUserId) =>
+      'active_profile_id_${ownerUserId.trim()}';
+
+  String? getActiveProfileIdSync(String ownerUserId) {
+    final trimmedOwner = ownerUserId.trim();
+    if (trimmedOwner.isEmpty) return null;
+
+    final userBox = hiveService.userBox;
+    final accountKey = _activeProfileIdKey(trimmedOwner);
+    final raw = userBox.get(accountKey);
+
     if (raw is Map && raw.containsKey('id')) {
-      final id = raw['id'] as String?;
+      final id = raw['id']?.toString();
       if (id != null && id.isNotEmpty) {
-        return id;
+        final profileRaw = hiveService.profileBox.get(id);
+        if (profileRaw is Map) {
+          final profile = ProfileModel.fromMap(
+            Map<String, dynamic>.from(profileRaw),
+          );
+          if (profile.ownerUserId == trimmedOwner && !profile.isArchived) {
+            return id;
+          }
+        }
       }
     }
+
+    // Legacy migration check:
+    final legacyRaw = userBox.get(_legacyActiveProfileIdKey);
+    if (legacyRaw is Map && legacyRaw.containsKey('id')) {
+      final legacyId = legacyRaw['id']?.toString();
+      if (legacyId != null && legacyId.isNotEmpty) {
+        final profileRaw = hiveService.profileBox.get(legacyId);
+        if (profileRaw is Map) {
+          final profile = ProfileModel.fromMap(
+            Map<String, dynamic>.from(profileRaw),
+          );
+          if (profile.ownerUserId == trimmedOwner && !profile.isArchived) {
+            return legacyId;
+          }
+        }
+      }
+    }
+
     return null;
   }
 
-  Future<String?> getActiveProfileId() async {
-    return getActiveProfileIdSync();
+  Future<String?> getActiveProfileId(String ownerUserId) async {
+    final trimmedOwner = ownerUserId.trim();
+    if (trimmedOwner.isEmpty) return null;
+
+    final userBox = hiveService.userBox;
+    final accountKey = _activeProfileIdKey(trimmedOwner);
+    final raw = userBox.get(accountKey);
+
+    if (raw is Map && raw.containsKey('id')) {
+      final id = raw['id']?.toString();
+      if (id != null && id.isNotEmpty) {
+        final profileRaw = hiveService.profileBox.get(id);
+        if (profileRaw is Map) {
+          final profile = ProfileModel.fromMap(
+            Map<String, dynamic>.from(profileRaw),
+          );
+          if (profile.ownerUserId == trimmedOwner && !profile.isArchived) {
+            return id;
+          }
+        }
+      }
+    }
+
+    // Legacy migration check:
+    final legacyRaw = userBox.get(_legacyActiveProfileIdKey);
+    if (legacyRaw is Map && legacyRaw.containsKey('id')) {
+      final legacyId = legacyRaw['id']?.toString();
+      if (legacyId != null && legacyId.isNotEmpty) {
+        final profileRaw = hiveService.profileBox.get(legacyId);
+        if (profileRaw is Map) {
+          final profile = ProfileModel.fromMap(
+            Map<String, dynamic>.from(profileRaw),
+          );
+          if (profile.ownerUserId == trimmedOwner && !profile.isArchived) {
+            await userBox.put(accountKey, {'id': legacyId});
+            await userBox.delete(_legacyActiveProfileIdKey);
+            return legacyId;
+          }
+        }
+      }
+    }
+
+    return null;
   }
 
-  Future<void> setActiveProfileId(String profileId) async {
-    final box = hiveService.userBox;
-    await box.put(_activeProfileIdKey, {'id': profileId});
+  Future<void> setActiveProfileId({
+    required String profileId,
+    required String ownerUserId,
+  }) async {
+    final trimmedOwner = ownerUserId.trim();
+    final trimmedId = profileId.trim();
+
+    if (trimmedOwner.isEmpty) {
+      throw ArgumentError(
+        'ownerUserId cannot be empty when setting active profile ID.',
+      );
+    }
+    if (trimmedId.isEmpty) {
+      throw ArgumentError(
+        'profileId cannot be empty when setting active profile ID.',
+      );
+    }
+
+    // TASK 4: Independently validate:
+    // 1. Profile exists.
+    final profileRaw = hiveService.profileBox.get(trimmedId);
+    if (profileRaw == null) {
+      throw ArgumentError(
+        'Cannot set active profile: Profile "$trimmedId" does not exist in local storage.',
+      );
+    }
+
+    final profile = ProfileModel.fromMap(
+      Map<String, dynamic>.from(profileRaw),
+    );
+
+    // 2. Profile belongs to the supplied owner.
+    if (profile.ownerUserId != trimmedOwner) {
+      throw StateError(
+        'Cannot set active profile: Profile "$trimmedId" does not belong to owner "$trimmedOwner".',
+      );
+    }
+
+    // 3. Profile is not archived.
+    if (profile.isArchived) {
+      throw StateError(
+        'Cannot set active profile: Profile "$trimmedId" is archived.',
+      );
+    }
+
+    try {
+      final userBox = hiveService.userBox;
+      if (!userBox.isOpen) return;
+      await userBox.put(_activeProfileIdKey(trimmedOwner), {'id': trimmedId});
+
+      if (userBox.isOpen && userBox.containsKey(_legacyActiveProfileIdKey)) {
+        await userBox.delete(_legacyActiveProfileIdKey);
+      }
+    } catch (_) {
+      // Safe ignore if box closes concurrently during teardown
+    }
   }
 
-  Future<void> clearActiveProfileId() async {
-    final box = hiveService.userBox;
-    await box.delete(_activeProfileIdKey);
+  Future<void> clearActiveProfileId([String? ownerUserId]) async {
+    try {
+      final userBox = hiveService.userBox;
+      if (!userBox.isOpen) return;
+      if (ownerUserId != null && ownerUserId.trim().isNotEmpty) {
+        await userBox.delete(_activeProfileIdKey(ownerUserId.trim()));
+      }
+      if (userBox.isOpen) {
+        await userBox.delete(_legacyActiveProfileIdKey);
+      }
+    } catch (_) {
+      // Safe ignore if box closes concurrently during teardown
+    }
   }
 }

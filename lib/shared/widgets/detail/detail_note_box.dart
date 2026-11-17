@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// DetailNoteBox renders a styled note/text box with fallback copy for empty content.
 class DetailNoteBox extends StatelessWidget {

@@ -237,6 +237,16 @@ class UuidUtils {
     return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}';
   }
 
+  static final RegExp _uuidRegex = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  /// Validates if a string conforms to standard UUID format (8-4-4-4-12 hex).
+  static bool isValidUuid(String? uuid) {
+    if (uuid == null || uuid.isEmpty) return false;
+    return _uuidRegex.hasMatch(uuid.trim());
+  }
+
   /// Validates if a string conforms to RFC 4122 Version 4 UUID format.
   static bool isValidV4(String? uuid) {
     if (uuid == null || uuid.isEmpty) return false;

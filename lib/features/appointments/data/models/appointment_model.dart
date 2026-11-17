@@ -127,6 +127,122 @@ class AppointmentModel {
     };
   }
 
+  /// Converts [AppointmentModel] to PostgreSQL-compliant JSON for `public.appointments`.
+  Map<String, dynamic> toSupabaseJson({bool includeId = true}) {
+    final cleanId = IdUtils.unprefix(id).trim();
+    final cleanProfileId = IdUtils.unprefix(profileId).trim();
+    final cleanDocId =
+        doctorId != null ? IdUtils.unprefix(doctorId!).trim() : null;
+    final cleanHospId =
+        hospitalId != null ? IdUtils.unprefix(hospitalId!).trim() : null;
+    final cleanClientUuid =
+        clientUuid != null ? IdUtils.unprefix(clientUuid!).trim() : null;
+
+    final parsedDeptId =
+        departmentId != null ? int.tryParse(departmentId!) : null;
+
+    final map = <String, dynamic>{
+      'profile_id': cleanProfileId,
+      'title': title.trim(),
+      'doctor_name': doctorName.trim(),
+      'doctor_id': (cleanDocId != null && UuidUtils.isValidUuid(cleanDocId))
+          ? cleanDocId
+          : null,
+      'doctor_specialty':
+          (doctorSpecialty != null && doctorSpecialty!.trim().isNotEmpty)
+              ? doctorSpecialty!.trim()
+              : null,
+      'hospital_id': (cleanHospId != null && UuidUtils.isValidUuid(cleanHospId))
+          ? cleanHospId
+          : null,
+      'hospital_name':
+          (hospitalName != null && hospitalName!.trim().isNotEmpty)
+              ? hospitalName!.trim()
+              : null,
+      'department_id': parsedDeptId,
+      'department': (department != null && department!.trim().isNotEmpty)
+          ? department!.trim()
+          : null,
+      'appointment_date': date.toUtc().toIso8601String(),
+      'reminder_enabled': reminderEnabled,
+      'notes': (notes != null && notes!.trim().isNotEmpty)
+          ? notes!.trim()
+          : null,
+      'cost': cost != null && cost! >= 0 ? cost : null,
+      'currency': currency.trim().isNotEmpty ? currency.trim() : 'INR',
+      'status': status.toLowerCase().trim(),
+    };
+
+    if (includeId && cleanId.isNotEmpty && UuidUtils.isValidUuid(cleanId)) {
+      map['id'] = cleanId;
+    }
+    if (cleanClientUuid != null && UuidUtils.isValidUuid(cleanClientUuid)) {
+      map['client_uuid'] = cleanClientUuid;
+    }
+
+    return map;
+  }
+
+  /// Reconstitutes an [AppointmentModel] from a `public.appointments` Supabase row.
+  factory AppointmentModel.fromSupabaseJson(Map<String, dynamic> json) {
+    DateTime parsedDate;
+    final dateVal = json['appointment_date'] ?? json['date'];
+    if (dateVal != null) {
+      parsedDate =
+          DateTime.tryParse(dateVal.toString())?.toLocal() ?? DateTime.now();
+    } else {
+      parsedDate = DateTime.now();
+    }
+
+    DateTime parsedCreated;
+    if (json['created_at'] != null) {
+      parsedCreated =
+          DateTime.tryParse(json['created_at'].toString())?.toLocal() ??
+          DateTime.now();
+    } else {
+      parsedCreated = DateTime.now();
+    }
+
+    DateTime parsedUpdated;
+    if (json['updated_at'] != null) {
+      parsedUpdated =
+          DateTime.tryParse(json['updated_at'].toString())?.toLocal() ??
+          parsedCreated;
+    } else {
+      parsedUpdated = parsedCreated;
+    }
+
+    double? parsedCost;
+    if (json['cost'] != null) {
+      parsedCost = double.tryParse(json['cost'].toString());
+    }
+
+    final rawId = json['id']?.toString() ?? '';
+    final id = rawId.startsWith('appointment_') ? rawId : 'appointment_$rawId';
+
+    return AppointmentModel(
+      id: id,
+      profileId: json['profile_id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Appointment',
+      doctorName: json['doctor_name']?.toString() ?? 'Doctor',
+      doctorId: json['doctor_id']?.toString(),
+      doctorSpecialty: json['doctor_specialty']?.toString(),
+      hospitalName: json['hospital_name']?.toString(),
+      hospitalId: json['hospital_id']?.toString(),
+      departmentId: json['department_id']?.toString(),
+      department: json['department']?.toString(),
+      date: parsedDate,
+      reminderEnabled: json['reminder_enabled'] as bool? ?? true,
+      notes: json['notes']?.toString(),
+      cost: parsedCost,
+      currency: json['currency']?.toString() ?? 'INR',
+      status: json['status']?.toString() ?? 'upcoming',
+      clientUuid: json['client_uuid']?.toString(),
+      createdAt: parsedCreated,
+      updatedAt: parsedUpdated,
+    );
+  }
+
   /// Converts to canonical server-compliant JSON for AP2/AP4 endpoints.
   ///
   /// Supports both integer `department_id` and string `department` according to the API contract.

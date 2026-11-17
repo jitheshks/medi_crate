@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// DetailInfoRow renders a single labeled data row with an icon, label, value, and optional tap action.
 class DetailInfoRow extends StatelessWidget {

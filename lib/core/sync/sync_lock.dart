@@ -54,6 +54,26 @@ class SyncLock {
     }
   }
 
+  /// Renews an active lease held by [token], extending it by [leaseDuration].
+  Future<bool> renew(String token) async {
+    if (token == noLockToken) return true;
+    try {
+      final now = DateTime.now();
+      final existing = _box.get(_key);
+      if (existing is Map && existing['token']?.toString() == token) {
+        await _box.put(_key, {
+          'token': token,
+          'acquiredAt': existing['acquiredAt'] ?? now.toIso8601String(),
+          'expiresAt': now.add(leaseDuration).toIso8601String(),
+        });
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Releases the lease if [token] still owns it. Safe to call unconditionally.
   Future<void> release(String token) async {
     if (token == noLockToken) return;

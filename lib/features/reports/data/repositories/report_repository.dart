@@ -2,51 +2,150 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 
-import '../../../../core/api/list_pull_support.dart';
 import '../../../../core/connectivity/connectivity_service.dart';
-import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/models/date_range_selection.dart';
 import '../../../../core/storage/attachment_cleanup_helper.dart';
 import '../../../../core/storage/hive_service.dart';
+import '../../../../core/storage/supabase_storage_service.dart';
+import '../../../../core/supabase/supabase_config.dart';
 import '../../../../core/sync/models/sync_queue_item.dart';
 import '../../../../core/sync/pending_mutation_guard.dart';
+import '../../../../core/sync/pulled_record_comparison.dart';
 import '../../../../core/sync/sync_service.dart';
 import '../../../../core/utils/id_utils.dart';
-import '../datasources/remote/report_remote_data_source.dart';
+import '../datasources/remote/supabase_report_remote_data_source.dart';
 import '../models/report_model.dart';
-import '../../presentation/widgets/form/report_attachment_helper.dart';
 
 /// ReportRepository manages profile-scoped diagnostic reports, lab results,
-/// prescriptions, and medical files in Hive storage with REST API synchronization (R1 - R6).
+/// prescriptions, and medical files in Hive storage with native Supabase and Storage integration.
 class ReportRepository {
   final HiveService hiveService;
   final SyncService? syncService;
-  final ReportRemoteDataSource? remoteDataSource;
+  final SupabaseReportRemoteDataSource? supabaseRemoteDataSource;
   final ConnectivityService? connectivityService;
+  final SupabaseStorageService? storageService;
 
-  /// Post-pull freshness signal (Phase 3): invoked once, after the Hive merge,
+  /// Post-pull freshness signal: invoked once, after the Hive merge,
   /// only when a pull actually changed local state.
   final void Function()? onPullMerged;
 
   final Map<String, Future<void>> _inFlightPulls = {};
 
-  /// Whether the last completed pull retrieved the full server dataset
-  /// (`received >= data.total`). Exposed for tests.
-  bool lastPullComplete = true;
-
   ReportRepository({
     required this.hiveService,
     this.syncService,
-    this.remoteDataSource,
+    this.supabaseRemoteDataSource,
     this.connectivityService,
+    this.storageService,
     this.onPullMerged,
+    dynamic remoteDataSource,
   });
 
   /// Normalizes report ID to ensure Hive key prefix.
   String _normalizeReportId(String rawId) {
     if (rawId.startsWith('report_')) return rawId;
     return 'report_$rawId';
+  }
+
+  String? _resolveCurrentUserId([String? explicitOwnerUserId]) {
+    if (explicitOwnerUserId != null && explicitOwnerUserId.trim().isNotEmpty) {
+      return explicitOwnerUserId.trim();
+    }
+    try {
+      if (SupabaseConfig.isInitialized) {
+        final sessionUid = SupabaseConfig.client.auth.currentUser?.id;
+        if (sessionUid != null && sessionUid.trim().isNotEmpty) {
+          return sessionUid.trim();
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String? _resolveProfileUuid(String profileId, String ownerUserId) {
+    final clean = IdUtils.unprefix(profileId).trim();
+    try {
+      final box = hiveService.profileBox;
+      final raw =
+          box.get(profileId) ?? box.get(clean) ?? box.get('prof_$clean');
+      Map? direct;
+      if (raw is Map) {
+        direct = raw;
+      } else {
+        for (final val in box.values) {
+          final pId =
+              (val['profile_id'] ?? val['profileId'] ?? val['id'])?.toString();
+          if (pId != null &&
+              (IdUtils.matches(pId, profileId) || IdUtils.matches(pId, clean))) {
+            direct = val;
+            break;
+          }
+        }
+      }
+      if (direct != null) {
+        final profOwner = (direct['owner_user_id'] ??
+                direct['ownerUserId'] ??
+                direct['user_id'])
+            ?.toString();
+        if (profOwner != null &&
+            profOwner.isNotEmpty &&
+            !IdUtils.matches(profOwner, ownerUserId)) {
+          return null;
+        }
+
+        final id =
+            (direct['profile_id'] ?? direct['profileId'] ?? direct['id'])?.toString();
+        if (id != null && UuidUtils.isValidUuid(IdUtils.unprefix(id))) {
+          return IdUtils.unprefix(id).trim();
+        }
+        final cUuid =
+            (direct['client_uuid'] ?? direct['clientUuid'])?.toString();
+        if (cUuid != null && UuidUtils.isValidUuid(cUuid)) {
+          return cUuid.trim();
+        }
+      }
+    } catch (_) {}
+
+    if (UuidUtils.isValidUuid(clean)) return clean;
+    return null;
+  }
+
+  Future<void> _cleanupSyncQueue(
+    String key,
+    String? rawId,
+    String? clientUuid,
+  ) async {
+    try {
+      final syncBox = hiveService.syncQueueBox;
+      final keysToDelete = <dynamic>[];
+      for (final entry in syncBox.toMap().entries) {
+        final val = entry.value;
+        final entity = val['entity']?.toString().toLowerCase();
+        if (entity == 'reports' || entity == 'report') {
+          final p = val['payload'];
+          if (p is Map) {
+            final pUuid =
+                p['client_uuid']?.toString() ?? p['clientUuid']?.toString();
+            final pId = p['id']?.toString();
+            if ((clientUuid != null &&
+                    clientUuid.isNotEmpty &&
+                    pUuid == clientUuid) ||
+                (pId != null &&
+                    (pId == key ||
+                        pId == rawId ||
+                        pId == IdUtils.unprefix(key) ||
+                        (rawId != null && pId == IdUtils.unprefix(rawId))))) {
+              keysToDelete.add(entry.key);
+            }
+          }
+        }
+      }
+      for (final k in keysToDelete) {
+        await syncBox.delete(k);
+      }
+    } catch (_) {}
   }
 
   /// Retrieves typed [ReportModel] list scoped to [profileId] immediately from local Hive cache (R1),
@@ -63,9 +162,10 @@ class ReportRepository {
     String? sort,
     int? page,
     int limit = 20,
+    String? explicitOwnerUserId,
   }) async {
     // 1. Dispatch background pull-sync asynchronously (unawaited)
-    if (remoteDataSource != null) {
+    if (supabaseRemoteDataSource != null) {
       unawaited(
         pullReports(
           profileId,
@@ -79,8 +179,20 @@ class ReportRepository {
           sort: sort,
           page: page,
           limit: limit,
+          explicitOwnerUserId: explicitOwnerUserId,
         ),
       );
+    }
+
+    // Reject foreign profiles if user session or explicitOwnerUserId is present
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId(explicitOwnerUserId);
+      if (ownerUserId != null) {
+        final resolvedProfile = _resolveProfileUuid(profileId, ownerUserId);
+        if (resolvedProfile == null) {
+          return [];
+        }
+      }
     }
 
     // 2. Return local Hive records immediately
@@ -124,8 +236,11 @@ class ReportRepository {
     String? sort,
     int? page,
     int limit = 20,
+    String? explicitOwnerUserId,
   }) {
-    if (remoteDataSource == null) return Future.value();
+    if (supabaseRemoteDataSource == null) {
+      return Future.value();
+    }
     final existing = _inFlightPulls[profileId];
     if (existing != null) return existing;
 
@@ -141,6 +256,7 @@ class ReportRepository {
       sort: sort,
       page: page,
       limit: limit,
+      explicitOwnerUserId: explicitOwnerUserId,
     );
     _inFlightPulls[profileId] = future;
     future.whenComplete(() {
@@ -163,101 +279,102 @@ class ReportRepository {
     String? sort,
     int? page,
     int limit = 20,
+    String? explicitOwnerUserId,
   }) async {
-    if (SyncService.isRemotePushSuspended) return;
     try {
-      final numericProfileId = IdUtils.resolveServerProfileId(
-        profileBox: hiveService.profileBox,
-        profileId: profileId,
-      );
-      if (numericProfileId == null) return;
+      if (supabaseRemoteDataSource != null) {
+        final ownerUserId = _resolveCurrentUserId(explicitOwnerUserId);
+        if (ownerUserId == null || ownerUserId.isEmpty) return;
 
-      final isOnline = connectivityService != null
-          ? await connectivityService!.checkConnectivity()
-          : true;
+        final profileUuid = _resolveProfileUuid(profileId, ownerUserId);
+        if (profileUuid == null || profileUuid.isEmpty) return;
 
-      if (!isOnline) return;
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (!isOnline) return;
 
-      final remoteList = await fetchCompleteList(
-        (fetchLimit, onTotal) => remoteDataSource!.fetchReports(
-          profileId: numericProfileId,
+        final remoteList = await supabaseRemoteDataSource!.fetchReports(
+          ownerUserId: ownerUserId,
+          profileId: profileUuid,
           category: category,
-          consultationId: consultationId,
-          doctorId: doctorId,
-          hospitalId: hospitalId,
           search: search,
           from: from,
           to: to,
-          sort: sort,
-          page: page,
-          limit: fetchLimit,
-          onTotal: onTotal,
-        ),
-        onComplete: (c) => lastPullComplete = c,
-      );
-      final box = hiveService.userBox;
-      bool pulledChanged = false;
+          limit: limit,
+        );
 
-      for (final raw in remoteList) {
-        final remoteModel = ReportModel.fromJson(raw);
-        final cleanId = remoteModel.id.isNotEmpty
-            ? remoteModel.id
-            : (raw['id']?.toString() ?? '');
-        final id = _normalizeReportId(cleanId);
+        final box = hiveService.userBox;
+        bool pulledChanged = false;
 
-        // Guard against overwriting pending local mutations (I2-C2)
-        if (PendingMutationGuard.hasPendingMutation(
-          syncQueueBox: hiveService.syncQueueBox,
-          profileBox: hiveService.profileBox,
-          entity: 'report',
-          profileId: profileId,
-          remoteId: id,
-          clientUuid: remoteModel.clientUuid,
-        )) {
-          continue;
-        }
+        for (final remoteModel in remoteList) {
+          final id = _normalizeReportId(remoteModel.id);
 
-        // Merge with local data (preserve local attachment file paths if already on disk)
-        final existingRaw = box.get(id) ?? box.get(cleanId);
-        ReportModel merged = remoteModel.copyWith(id: id, profileId: profileId);
-
-        if (existingRaw is Map) {
-          final existingModel = ReportModel.fromJson(
-            Map<String, dynamic>.from(existingRaw),
-          );
-
-          // Merge attachments: preserve local filePath for cached files
-          final mergedAttachments = <ReportAttachmentModel>[];
-          for (final rAtt in remoteModel.attachments) {
-            final localMatch = existingModel.attachments.firstWhere(
-              (lAtt) =>
-                  lAtt.id == rAtt.id ||
-                  (lAtt.name == rAtt.name && lAtt.filePath != null),
-              orElse: () => rAtt,
-            );
-            mergedAttachments.add(rAtt.copyWith(filePath: localMatch.filePath));
+          // Guard against overwriting pending local mutations (I2-C2)
+          if (PendingMutationGuard.hasPendingMutation(
+                syncQueueBox: hiveService.syncQueueBox,
+                profileBox: hiveService.profileBox,
+                entity: 'reports',
+                profileId: profileId,
+                remoteId: id,
+                clientUuid: remoteModel.clientUuid,
+              ) ||
+              PendingMutationGuard.hasPendingMutation(
+                syncQueueBox: hiveService.syncQueueBox,
+                profileBox: hiveService.profileBox,
+                entity: 'report',
+                profileId: profileId,
+                remoteId: id,
+                clientUuid: remoteModel.clientUuid,
+              )) {
+            continue;
           }
 
-          merged = merged.copyWith(
-            attachments: mergedAttachments.isNotEmpty
-                ? mergedAttachments
-                : existingModel.attachments,
-            clientUuid: existingModel.clientUuid ?? remoteModel.clientUuid,
-            notes: (merged.notes != null && merged.notes!.isNotEmpty)
-                ? merged.notes
-                : existingModel.notes,
-          );
+          // Merge with local data (preserve local attachment file paths if already on disk)
+          final existingRaw = box.get(id) ?? box.get(remoteModel.id);
+          ReportModel merged = remoteModel.copyWith(id: id, profileId: profileId);
+
+          if (existingRaw is Map) {
+            final existingModel = ReportModel.fromJson(
+              Map<String, dynamic>.from(existingRaw),
+            );
+
+            // Merge attachments: preserve local filePath for cached files
+            final mergedAttachments = <ReportAttachmentModel>[];
+            for (final rAtt in remoteModel.attachments) {
+              final localMatch = existingModel.attachments.firstWhere(
+                (lAtt) =>
+                    lAtt.id == rAtt.id ||
+                    (lAtt.name == rAtt.name && lAtt.filePath != null),
+                orElse: () => rAtt,
+              );
+              mergedAttachments.add(
+                rAtt.copyWith(filePath: localMatch.filePath),
+              );
+            }
+
+            merged = merged.copyWith(
+              attachments: mergedAttachments.isNotEmpty
+                  ? mergedAttachments
+                  : existingModel.attachments,
+              clientUuid: existingModel.clientUuid ?? remoteModel.clientUuid,
+              notes: (merged.notes != null && merged.notes!.isNotEmpty)
+                  ? merged.notes
+                  : existingModel.notes,
+            );
+          }
+
+          final encoded = merged.toJson();
+          if (pulledRecordChanged(box.get(id), encoded)) pulledChanged = true;
+          await box.put(id, encoded);
         }
 
-        final encoded = merged.toJson();
-        if (pulledRecordChanged(box.get(id), encoded)) pulledChanged = true;
-        await box.put(id, encoded);
-      }
-
-      if (pulledChanged) {
-        try {
-          onPullMerged?.call();
-        } catch (_) {}
+        if (pulledChanged) {
+          try {
+            onPullMerged?.call();
+          } catch (_) {}
+        }
+        return;
       }
     } catch (_) {
       // Fallback gracefully to local Hive cache on remote error / offline
@@ -266,14 +383,18 @@ class ReportRepository {
     }
   }
 
-  /// Backward-compatible raw JSON map getter for AnalyticsRepository & Legacy caller code.
+  /// Backward-compatible raw JSON map getter for AnalyticsRepository & untyped callers.
   Future<List<Map<String, dynamic>>> getReports(String profileId) async {
     final models = await getReportsForProfile(profileId);
     return models.map((m) => m.toJson()).toList();
   }
 
   /// Loads single report by [reportId] for [profileId] with offline-first synchronization (R3).
-  Future<ReportModel?> getReportById(String profileId, String reportId) async {
+  Future<ReportModel?> getReportById(
+    String profileId,
+    String reportId, {
+    String? explicitOwnerUserId,
+  }) async {
     final cleanTarget = IdUtils.unprefix(reportId);
     final key = _normalizeReportId(reportId);
     final box = hiveService.userBox;
@@ -323,77 +444,78 @@ class ReportRepository {
       }
     }
 
-    // 3. Fallback to remote if missing locally and online
-    final serverId = IdUtils.toServerIntId(cleanTarget);
-    if (remoteDataSource != null && serverId != null) {
-      final isOnline = connectivityService != null
-          ? await connectivityService!.checkConnectivity()
-          : true;
-
-      if (isOnline) {
-        try {
-          final remoteMap = await remoteDataSource!.getReport(serverId);
-          if (remoteMap.isNotEmpty) {
-            final remoteModel = ReportModel.fromJson(remoteMap);
-
-            // Guard against overwriting pending local mutations (I2-C2)
-            if (!PendingMutationGuard.hasPendingMutation(
-              syncQueueBox: hiveService.syncQueueBox,
-              profileBox: hiveService.profileBox,
-              entity: 'report',
-              profileId: profileId,
-              remoteId: key,
-              clientUuid: remoteModel.clientUuid,
-            )) {
-              final existingRaw =
-                  box.get(key) ??
-                  box.get(reportId) ??
-                  box.get(serverId.toString());
-
-              ReportModel merged = remoteModel.copyWith(
-                id: key,
-                profileId: profileId,
-              );
-
-              if (existingRaw is Map) {
-                final existingModel = ReportModel.fromJson(
-                  Map<String, dynamic>.from(existingRaw),
+    // 3. Fallback to Supabase if missing locally and online
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId(explicitOwnerUserId);
+      final profileUuid = ownerUserId != null
+          ? _resolveProfileUuid(profileId, ownerUserId)
+          : null;
+      if (ownerUserId != null && profileUuid != null) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (isOnline) {
+          try {
+            final remoteModel = await supabaseRemoteDataSource!.getReportById(
+              reportId: cleanTarget,
+              ownerUserId: ownerUserId,
+              profileId: profileUuid,
+            );
+            if (remoteModel != null) {
+              if (!PendingMutationGuard.hasPendingMutation(
+                    syncQueueBox: hiveService.syncQueueBox,
+                    profileBox: hiveService.profileBox,
+                    entity: 'reports',
+                    profileId: profileId,
+                    remoteId: key,
+                    clientUuid: remoteModel.clientUuid,
+                  ) &&
+                  !PendingMutationGuard.hasPendingMutation(
+                    syncQueueBox: hiveService.syncQueueBox,
+                    profileBox: hiveService.profileBox,
+                    entity: 'report',
+                    profileId: profileId,
+                    remoteId: key,
+                    clientUuid: remoteModel.clientUuid,
+                  )) {
+                final existingRaw =
+                    box.get(key) ?? box.get(reportId) ?? box.get(cleanTarget);
+                ReportModel merged = remoteModel.copyWith(
+                  id: key,
+                  profileId: profileId,
                 );
-
-                // Merge attachments: preserve local filePath for cached files
-                final mergedAttachments = <ReportAttachmentModel>[];
-                for (final rAtt in remoteModel.attachments) {
-                  final localMatch = existingModel.attachments.firstWhere(
-                    (lAtt) =>
-                        lAtt.id == rAtt.id ||
-                        (lAtt.name == rAtt.name && lAtt.filePath != null),
-                    orElse: () => rAtt,
+                if (existingRaw is Map) {
+                  final existingModel = ReportModel.fromJson(
+                    Map<String, dynamic>.from(existingRaw),
                   );
-                  mergedAttachments.add(
-                    rAtt.copyWith(filePath: localMatch.filePath),
+                  final mergedAttachments = <ReportAttachmentModel>[];
+                  for (final rAtt in remoteModel.attachments) {
+                    final localMatch = existingModel.attachments.firstWhere(
+                      (lAtt) =>
+                          lAtt.id == rAtt.id ||
+                          (lAtt.name == rAtt.name && lAtt.filePath != null),
+                      orElse: () => rAtt,
+                    );
+                    mergedAttachments.add(
+                      rAtt.copyWith(filePath: localMatch.filePath),
+                    );
+                  }
+                  merged = merged.copyWith(
+                    attachments: mergedAttachments.isNotEmpty
+                        ? mergedAttachments
+                        : existingModel.attachments,
+                    clientUuid:
+                        existingModel.clientUuid ?? remoteModel.clientUuid,
                   );
                 }
-
-                merged = merged.copyWith(
-                  attachments: mergedAttachments.isNotEmpty
-                      ? mergedAttachments
-                      : existingModel.attachments,
-                  clientUuid:
-                      existingModel.clientUuid ?? remoteModel.clientUuid,
-                  notes: (merged.notes != null && merged.notes!.isNotEmpty)
-                      ? merged.notes
-                      : existingModel.notes,
-                );
+                await box.put(key, merged.toJson());
+                return merged;
               }
-
-              await box.put(key, merged.toJson());
-              return merged;
             }
-          }
-        } catch (_) {
-          // Fallback gracefully to local Hive cache
+          } catch (_) {}
         }
       }
+      return null;
     }
 
     final reports = await getReportsForProfile(profileId);
@@ -411,12 +533,14 @@ class ReportRepository {
     }
   }
 
-  /// Resolves the physical [File] for [attachment]. If missing on disk, downloads via R6,
+  /// Resolves the physical [File] for [attachment]. If missing on disk, downloads via Storage,
   /// saves it to persistent profile storage, and updates the local Hive record with the new filePath.
   Future<File?> getOrDownloadAttachmentFile({
     required String profileId,
     required String reportId,
     required ReportAttachmentModel attachment,
+    String? explicitOwnerUserId,
+    Directory? customBaseDirectory,
   }) async {
     // 1. Check if local file exists on disk
     if (attachment.filePath != null && attachment.filePath!.trim().isNotEmpty) {
@@ -426,65 +550,68 @@ class ReportRepository {
       }
     }
 
-    // 2. Check if remote download is possible
-    if (remoteDataSource == null) {
-      return null;
-    }
-
-    final cleanReportId =
-        IdUtils.toServerIntId(reportId) ??
-        int.tryParse(IdUtils.unprefix(reportId));
-    final cleanFileId =
-        IdUtils.toServerIntId(attachment.id) ??
-        int.tryParse(IdUtils.unprefix(attachment.id));
-
-    if (cleanReportId == null || cleanFileId == null) {
-      return null;
-    }
-
-    // 3. Download binary bytes from R6
-    try {
-      final bytes = await remoteDataSource!.downloadReportAttachment(
-        cleanReportId,
-        cleanFileId,
-      );
-
-      // 4. Save to persistent profile storage
-      final savedModel =
-          await ReportAttachmentHelper.saveBytesToPersistentStorage(
-            bytes: bytes,
-            profileId: profileId,
-            fileName: attachment.name,
-            fileType: attachment.fileType,
-            attachmentId: attachment.id,
-          );
-
-      // 5. Update local Hive report model with the persistent filePath
-      final existingReport = await getReportById(profileId, reportId);
-      if (existingReport != null) {
-        final updatedAttachments = existingReport.attachments.map((a) {
-          if (a.id == attachment.id || a.name == attachment.name) {
-            return a.copyWith(filePath: savedModel.filePath);
-          }
-          return a;
-        }).toList();
-
-        final updatedReport = existingReport.copyWith(
-          attachments: updatedAttachments,
+    // 2. Check if remote download via Supabase Storage is possible
+    if (storageService != null &&
+        attachment.fileUrl != null &&
+        attachment.fileUrl!.trim().isNotEmpty) {
+      try {
+        final bytes = await storageService!.downloadBytes(
+          bucket: SupabaseStorageService.reportsBucket,
+          storagePath: attachment.fileUrl!.trim(),
         );
-        final box = hiveService.userBox;
-        await box.put(_normalizeReportId(reportId), updatedReport.toJson());
-      }
+        if (bytes.isNotEmpty) {
+          Directory appDir;
+          if (customBaseDirectory != null) {
+            appDir = customBaseDirectory;
+          } else {
+            try {
+              appDir = await getApplicationDocumentsDirectory();
+            } catch (_) {
+              appDir = Directory.systemTemp;
+            }
+          }
+          final targetDir = Directory(
+            '${appDir.path}/profiles/$profileId/reports/attachments',
+          );
+          if (!await targetDir.exists()) {
+            await targetDir.create(recursive: true);
+          }
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          String ext = 'bin';
+          if (attachment.name.contains('.')) {
+            ext = attachment.name.split('.').last.toLowerCase();
+          } else if (attachment.fileType != null &&
+              attachment.fileType!.contains('/')) {
+            ext = attachment.fileType!.split('/').last.toLowerCase();
+          }
+          final cleanReportId = IdUtils.unprefix(reportId);
+          final cleanFileId = IdUtils.unprefix(attachment.id);
+          final destPath =
+              '${targetDir.path}/report_${cleanReportId}_att_${cleanFileId}_$timestamp.$ext';
+          final file = File(destPath);
+          await file.writeAsBytes(bytes, flush: true);
 
-      if (savedModel.filePath != null) {
-        return File(savedModel.filePath!);
-      }
-    } on AppException {
-      // Surface typed API failures (network / 404 / 401 / 403 / 5xx) so the
-      // caller can present an accurate reason instead of a generic message.
-      rethrow;
-    } catch (_) {
-      // Genuinely unexpected/local failures fall back to null; caller handles it.
+          // Update local Hive record with new filePath
+          final normId = _normalizeReportId(reportId);
+          final box = hiveService.userBox;
+          final existing = box.get(normId) ?? box.get(reportId) ?? box.get(cleanReportId);
+          if (existing is Map) {
+            final model = ReportModel.fromJson(
+              Map<String, dynamic>.from(existing),
+            );
+            final updatedAttachments = model.attachments.map((a) {
+              if (a.id == attachment.id || a.name == attachment.name) {
+                return a.copyWith(filePath: file.path);
+              }
+              return a;
+            }).toList();
+            final updatedModel =
+                model.copyWith(attachments: updatedAttachments);
+            await box.put(normId, updatedModel.toJson());
+          }
+          return file;
+        }
+      } catch (_) {}
     }
 
     return null;
@@ -496,15 +623,25 @@ class ReportRepository {
     return reports.length;
   }
 
-  /// Saves or updates [report] in Hive and queues sync operation.
-  Future<ReportModel> saveReport(String profileId, ReportModel report) async {
+  /// Saves or updates [report] in Hive and synchronizes with Supabase / queues sync operation.
+  Future<ReportModel> saveReport(
+    String profileId,
+    ReportModel report, {
+    String? explicitOwnerUserId,
+  }) async {
     final rawId = report.id.isNotEmpty
         ? report.id
         : 'report_${DateTime.now().microsecondsSinceEpoch}';
+    final cleanId = IdUtils.unprefix(rawId).trim();
+    final isNew = rawId.isEmpty ||
+        rawId.startsWith('temp_') ||
+        !UuidUtils.isValidUuid(cleanId);
     final id = _normalizeReportId(rawId);
 
     final box = hiveService.userBox;
-    final existingRaw = box.get(id) ?? box.get(rawId);
+    final existingRaw = box.get(id) ??
+        box.get(rawId) ??
+        (cleanId.isNotEmpty ? box.get(cleanId) : null);
     String? existingUuid;
     if (existingRaw is Map) {
       existingUuid =
@@ -514,8 +651,8 @@ class ReportRepository {
 
     final clientUuid =
         (report.clientUuid != null && report.clientUuid!.trim().isNotEmpty)
-        ? report.clientUuid!.trim()
-        : (existingUuid ?? UuidUtils.generateV4());
+            ? report.clientUuid!.trim()
+            : (existingUuid ?? UuidUtils.generateV4());
 
     final updated = report.copyWith(
       id: id,
@@ -552,6 +689,122 @@ class ReportRepository {
       } catch (_) {}
     }
 
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId(explicitOwnerUserId);
+      final profileUuid = ownerUserId != null
+          ? _resolveProfileUuid(profileId, ownerUserId)
+          : null;
+      final isExistingUuid = !isNew && UuidUtils.isValidUuid(cleanId);
+
+      if (ownerUserId != null && profileUuid != null) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (isOnline) {
+          try {
+            final targetReportId =
+                isExistingUuid ? cleanId : UuidUtils.generateV4();
+
+            // Upload any attachments that have local `filePath` and need storage
+            final List<ReportAttachmentModel> processedAttachments = [];
+            for (final att in updated.attachments) {
+              String? fileUrl = att.fileUrl;
+              if (att.filePath != null && att.filePath!.trim().isNotEmpty) {
+                final localFile = File(att.filePath!.trim());
+                if (localFile.existsSync() &&
+                    (fileUrl == null ||
+                        fileUrl.trim().isEmpty ||
+                        !fileUrl.contains('/'))) {
+                  fileUrl = await supabaseRemoteDataSource!.uploadAttachmentFile(
+                    userId: ownerUserId,
+                    reportId: targetReportId,
+                    file: localFile,
+                    customAttachmentId:
+                        UuidUtils.isValidUuid(IdUtils.unprefix(att.id))
+                            ? IdUtils.unprefix(att.id)
+                            : null,
+                    fileName: att.name,
+                  );
+                }
+              }
+              processedAttachments.add(att.copyWith(fileUrl: fileUrl));
+            }
+
+            final reportForRemote = updated.copyWith(
+              id: targetReportId,
+              profileId: profileUuid,
+              attachments: processedAttachments,
+            );
+
+            ReportModel remoteResult;
+            if (isExistingUuid) {
+              remoteResult = await supabaseRemoteDataSource!.updateReport(
+                report: reportForRemote,
+                ownerUserId: ownerUserId,
+                profileId: profileUuid,
+              );
+            } else {
+              remoteResult = await supabaseRemoteDataSource!.createReport(
+                report: reportForRemote,
+                ownerUserId: ownerUserId,
+                profileId: profileUuid,
+              );
+            }
+
+            // Preserve local filePaths for attachments in Hive
+            final List<ReportAttachmentModel> mergedAttachments = [];
+            for (final rAtt in remoteResult.attachments) {
+              final localMatch = processedAttachments.firstWhere(
+                (pAtt) => pAtt.id == rAtt.id || pAtt.name == rAtt.name,
+                orElse: () => rAtt,
+              );
+              mergedAttachments.add(
+                rAtt.copyWith(filePath: localMatch.filePath ?? rAtt.filePath),
+              );
+            }
+
+            final serverId = remoteResult.id;
+            final serverKey = _normalizeReportId(serverId);
+            final synced = remoteResult.copyWith(
+              id: serverKey,
+              profileId: profileId,
+              clientUuid: clientUuid,
+              attachments: mergedAttachments,
+            );
+
+            if (!isExistingUuid) {
+              await box.delete(rawId);
+              await box.delete(_normalizeReportId(rawId));
+              await box.delete(id);
+              if (cleanId.isNotEmpty) await box.delete(cleanId);
+            }
+            await box.put(serverKey, synced.toJson());
+
+            // Clean up sync queue:
+            await _cleanupSyncQueue(serverKey, rawId, clientUuid);
+            return synced;
+          } catch (_) {
+            // Fall back to queueing offline mutation
+          }
+        }
+
+        // Offline or network error: enqueue mutation
+        await syncService?.addToQueue(
+          SyncQueueItem(
+            id: 'sync_report_${DateTime.now().millisecondsSinceEpoch}',
+            entity: 'reports',
+            operation: isExistingUuid ? 'update' : 'create',
+            payload: updated.toJson(),
+          ),
+        );
+        return updated;
+      }
+
+      // Unauthenticated or foreign profile
+      return updated;
+    }
+
+    // Legacy branch ONLY when supabaseRemoteDataSource == null
     final serverId = IdUtils.toServerIntId(report.id);
     final isNumericServerId = serverId != null;
 
@@ -570,45 +823,26 @@ class ReportRepository {
   }
 
   /// Deletes report by [reportId] from local storage and cleans up attached files.
-  Future<void> deleteReport(String profileId, String reportId) async {
-    final existingReport = await getReportById(profileId, reportId);
+  Future<void> deleteReport(
+    String profileId,
+    String reportId, {
+    String? explicitOwnerUserId,
+  }) async {
+    final existingReport = await getReportById(
+      profileId,
+      reportId,
+      explicitOwnerUserId: explicitOwnerUserId,
+    );
     final key = _normalizeReportId(reportId);
-    final serverId = IdUtils.toServerIntId(reportId);
-    final isNumericServerId = serverId != null;
+    final cleanId = IdUtils.unprefix(reportId).trim();
 
     // 1. Delete from local Hive first
     final box = hiveService.userBox;
     await box.delete(key);
     await box.delete(reportId);
+    if (cleanId.isNotEmpty) await box.delete(cleanId);
 
-    // 2. If local-only report is deleted, remove any pending create/update queue items
-    if (!isNumericServerId) {
-      try {
-        final syncBox = hiveService.syncQueueBox;
-        final keysToDelete = <dynamic>[];
-        for (final entry in syncBox.toMap().entries) {
-          final val = entry.value;
-          final entity = val['entity']?.toString().toLowerCase();
-          if (entity == 'reports' || entity == 'report') {
-            final p = val['payload'];
-            if (p is Map) {
-              final pId = p['id']?.toString();
-              if (pId == key ||
-                  pId == reportId ||
-                  IdUtils.matches(pId, reportId) ||
-                  (val['id']?.toString() == reportId)) {
-                keysToDelete.add(entry.key);
-              }
-            }
-          }
-        }
-        for (final k in keysToDelete) {
-          await syncBox.delete(k);
-        }
-      } catch (_) {}
-    }
-
-    // 3. Clean up attachment files using safe ownership check
+    // 2. Clean up attachment files using safe ownership check
     if (existingReport != null && existingReport.attachments.isNotEmpty) {
       final pathsToDelete = existingReport.attachments
           .map((att) => att.filePath)
@@ -623,7 +857,60 @@ class ReportRepository {
       }
     }
 
-    // 4. Queue delete if server numeric ID
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId(explicitOwnerUserId);
+      final profileUuid = ownerUserId != null
+          ? _resolveProfileUuid(profileId, ownerUserId)
+          : null;
+      final isUuid = UuidUtils.isValidUuid(cleanId);
+
+      bool deletedRemotely = false;
+      if (ownerUserId != null && profileUuid != null && isUuid) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (isOnline) {
+          try {
+            await supabaseRemoteDataSource!.deleteReport(
+              reportId: cleanId,
+              ownerUserId: ownerUserId,
+              profileId: profileUuid,
+            );
+            deletedRemotely = true;
+          } catch (_) {
+            deletedRemotely = false;
+          }
+        }
+      }
+
+      if (!deletedRemotely &&
+          isUuid &&
+          ownerUserId != null &&
+          profileUuid != null) {
+        await syncService?.addToQueue(
+          SyncQueueItem(
+            id: 'sync_report_del_${DateTime.now().millisecondsSinceEpoch}',
+            entity: 'reports',
+            operation: 'delete',
+            payload: {'id': key, 'profile_id': profileId},
+          ),
+        );
+      }
+
+      if (!isUuid) {
+        await _cleanupSyncQueue(key, reportId, null);
+      }
+      return;
+    }
+
+    // Legacy branch ONLY when supabaseRemoteDataSource == null
+    final serverId = IdUtils.toServerIntId(reportId);
+    final isNumericServerId = serverId != null;
+
+    if (!isNumericServerId) {
+      await _cleanupSyncQueue(key, reportId, null);
+    }
+
     if (syncService != null && isNumericServerId) {
       await syncService!.addToQueue(
         SyncQueueItem(

@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/routes/app_routes.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
 import '../../../../shared/widgets/buttons/primary_button.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../providers/profile_providers.dart';
 import '../widgets/profile_avatar_picker.dart';
 import '../widgets/profile_medical_history_section.dart';
@@ -69,12 +70,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _selectedBloodGroup = profile.bloodGroup;
       _photoPath = profile.photo;
       _allergies = List<String>.from(profile.allergies);
-      _allergiesConfirmedNone = profile.allergiesConfirmedNone;
+      // Normalize contradictory state: if list has entries, confirmed-none must be false
+      _allergiesConfirmedNone = _allergies.isNotEmpty
+          ? false
+          : profile.allergiesConfirmedNone;
       _chronicConditions = List<String>.from(profile.chronicConditions);
-      _chronicConditionsConfirmedNone = profile.chronicConditionsConfirmedNone;
+      _chronicConditionsConfirmedNone = _chronicConditions.isNotEmpty
+          ? false
+          : profile.chronicConditionsConfirmedNone;
 
       if (profile.dateOfBirth != null && profile.dateOfBirth!.isNotEmpty) {
         _selectedDob = DateTime.tryParse(profile.dateOfBirth!);
+      } else {
+        final userDob = ref.read(authControllerProvider).user?.dateOfBirth;
+        if (userDob != null && userDob.isNotEmpty) {
+          _selectedDob = DateTime.tryParse(userDob);
+        }
       }
     });
   }
@@ -103,6 +114,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  void _removeAllergy(String a) {
+    setState(() {
+      _allergies.remove(a);
+      // Removing an entry must not automatically confirm that the list is empty
+      if (_allergies.isNotEmpty) {
+        _allergiesConfirmedNone = false;
+      }
+    });
+  }
+
+  void _onAllergiesConfirmedNoneChanged(bool? val) {
+    setState(() {
+      // Cannot set confirmed-none to true while list contains entries
+      if (val == true && _allergies.isNotEmpty) {
+        _allergiesConfirmedNone = false;
+      } else {
+        _allergiesConfirmedNone = val ?? false;
+      }
+    });
+  }
+
   void _addCondition() {
     final text = _conditionInputController.text.trim();
     if (text.isEmpty) return;
@@ -115,6 +147,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     } else {
       _conditionInputController.clear();
     }
+  }
+
+  void _removeCondition(String c) {
+    setState(() {
+      _chronicConditions.remove(c);
+      // Removing an entry must not automatically confirm that the list is empty
+      if (_chronicConditions.isNotEmpty) {
+        _chronicConditionsConfirmedNone = false;
+      }
+    });
+  }
+
+  void _onChronicConditionsConfirmedNoneChanged(bool? val) {
+    setState(() {
+      // Cannot set confirmed-none to true while list contains entries
+      if (val == true && _chronicConditions.isNotEmpty) {
+        _chronicConditionsConfirmedNone = false;
+      } else {
+        _chronicConditionsConfirmedNone = val ?? false;
+      }
+    });
   }
 
   Future<void> _selectDob() async {
@@ -154,9 +207,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       selectedBloodGroup: _selectedBloodGroup,
       photoPath: _photoPath,
       allergies: _allergies,
-      allergiesConfirmedNone: _allergiesConfirmedNone,
+      allergiesConfirmedNone: _allergies.isEmpty && _allergiesConfirmedNone,
       chronicConditions: _chronicConditions,
-      chronicConditionsConfirmedNone: _chronicConditionsConfirmedNone,
+      chronicConditionsConfirmedNone:
+          _chronicConditions.isEmpty && _chronicConditionsConfirmedNone,
     );
 
     if (mounted) {
@@ -186,6 +240,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (next != null &&
           (prev == null ||
               prev.profileId != next.profileId ||
+              prev.photo != next.photo ||
+              prev.dateOfBirth != next.dateOfBirth ||
+              (_selectedDob == null && next.dateOfBirth != null) ||
               _nameController.text.isEmpty)) {
         _loadProfileData();
       }
@@ -265,23 +322,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             allergies: _allergies,
                             allergiesConfirmedNone: _allergiesConfirmedNone,
                             onAddAllergy: _addAllergy,
-                            onRemoveAllergy: (a) =>
-                                setState(() => _allergies.remove(a)),
-                            onAllergiesConfirmedNoneChanged: (val) => setState(
-                              () => _allergiesConfirmedNone = val ?? false,
-                            ),
+                            onRemoveAllergy: _removeAllergy,
+                            onAllergiesConfirmedNoneChanged:
+                                _onAllergiesConfirmedNoneChanged,
                             conditionInputController: _conditionInputController,
                             chronicConditions: _chronicConditions,
                             chronicConditionsConfirmedNone:
                                 _chronicConditionsConfirmedNone,
                             onAddCondition: _addCondition,
-                            onRemoveCondition: (c) =>
-                                setState(() => _chronicConditions.remove(c)),
-                            onChronicConditionsConfirmedNoneChanged: (val) =>
-                                setState(
-                                  () => _chronicConditionsConfirmedNone =
-                                      val ?? false,
-                                ),
+                            onRemoveCondition: _removeCondition,
+                            onChronicConditionsConfirmedNoneChanged:
+                                _onChronicConditionsConfirmedNoneChanged,
                           ),
                           const SizedBox(height: 32),
                           PrimaryButton(

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/routes/app_routes.dart';
@@ -52,11 +52,17 @@ class ProfileSaveHelper {
       final updatedProfile = activeProfile.copyWith(
         fullName: nameText.trim(),
         dateOfBirth: dobStr,
+        clearDateOfBirth: dobStr == null,
         gender: selectedGender,
+        clearGender: selectedGender == null,
         bloodGroup: selectedBloodGroup,
+        clearBloodGroup: selectedBloodGroup == null,
         height: parsedHeight,
+        clearHeight: parsedHeight == null,
         weight: parsedWeight,
+        clearWeight: parsedWeight == null,
         photo: photoPath,
+        clearPhoto: photoPath == null,
         allergies: allergies,
         allergiesConfirmedNone: allergiesConfirmedNone,
         chronicConditions: chronicConditions,

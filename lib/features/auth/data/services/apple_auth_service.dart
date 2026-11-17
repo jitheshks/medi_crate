@@ -44,9 +44,8 @@ class AppleAuthResult {
 /// **iOS/macOS**: Native ASAuthorizationController sheet via sign_in_with_apple
 /// (nonce + identityToken → OAuthCredential → signInWithCredential).
 ///
-/// Both paths ultimately return a Firebase ID token that flows via
-/// AuthNotifier → AuthRepository → AuthRemoteDataSource →
-/// POST /auth/apple-login (A9), identical to the Google flow.
+/// Both paths return authentication credentials that flow through
+/// AuthNotifier and AuthRepository.
 class AppleAuthService {
   final FirebaseAuth? _customFirebaseAuth;
 

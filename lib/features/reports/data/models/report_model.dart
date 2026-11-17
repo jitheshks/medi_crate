@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/storage/supabase_storage_service.dart';
 import '../../../../core/utils/id_utils.dart';
 
 /// Represents a single file attachment for a medical report.
@@ -61,6 +62,84 @@ class ReportAttachmentModel {
     if (fileType != null) 'file_type': fileType,
     if (fileUrl != null) 'file_url': fileUrl,
   };
+
+  /// Serializes attachment for Supabase `public.report_attachments` row.
+  Map<String, dynamic> toSupabaseJson({
+    required String reportId,
+    required String userId,
+    bool includeId = true,
+  }) {
+    final cleanId = IdUtils.unprefix(id).trim();
+    final cleanReportId = IdUtils.unprefix(reportId).trim();
+    final cleanUserId = userId.trim();
+
+    String remotePath = '';
+    if (fileUrl != null &&
+        fileUrl!.isNotEmpty &&
+        !fileUrl!.startsWith('/') &&
+        !fileUrl!.startsWith('file:')) {
+      remotePath = fileUrl!.trim();
+    } else if (filePath != null &&
+        filePath!.isNotEmpty &&
+        !filePath!.startsWith('/') &&
+        !filePath!.startsWith('file:')) {
+      remotePath = filePath!.trim();
+    } else {
+      remotePath = fileUrl?.trim() ?? filePath?.trim() ?? '';
+    }
+
+    return {
+      if (includeId && cleanId.isNotEmpty && UuidUtils.isValidUuid(cleanId))
+        'id': cleanId,
+      'report_id': cleanReportId,
+      'user_id': cleanUserId,
+      'name': name.trim().isNotEmpty ? name.trim() : 'attachment.pdf',
+      'file_path': remotePath,
+      'file_type': fileType ?? SupabaseStorageService.resolveMimeType(name),
+      if (sizeBytes != null) 'size_bytes': sizeBytes,
+    };
+  }
+
+  /// Deserializes attachment from Supabase PostgREST JSON (`public.report_attachments`).
+  factory ReportAttachmentModel.fromSupabaseJson(
+    Map<String, dynamic> json, {
+    String? signedUrl,
+  }) {
+    final rawSize = json['size_bytes'] ?? json['size'] ?? json['sizeBytes'];
+    int? bytes;
+    String formattedSize = '0 KB';
+
+    if (rawSize is num) {
+      bytes = rawSize.toInt();
+      formattedSize = formatBytes(bytes);
+    } else if (rawSize is String) {
+      formattedSize = rawSize;
+      final digits = int.tryParse(rawSize.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (digits != null) {
+        if (rawSize.toUpperCase().contains('MB')) {
+          bytes = digits * 1024 * 1024;
+        } else if (rawSize.toUpperCase().contains('KB')) {
+          bytes = digits * 1024;
+        } else {
+          bytes = digits;
+        }
+      }
+    }
+
+    final rawPath = json['file_path'] as String? ?? json['filePath'] as String?;
+    final rawUrl =
+        signedUrl ?? json['file_url'] as String? ?? json['fileUrl'] as String?;
+
+    return ReportAttachmentModel(
+      id: json['id']?.toString() ?? '',
+      name: json['name'] as String? ?? 'attachment.pdf',
+      size: formattedSize,
+      sizeBytes: bytes,
+      filePath: rawPath,
+      fileType: json['file_type'] as String? ?? json['fileType'] as String?,
+      fileUrl: rawUrl ?? rawPath,
+    );
+  }
 
   factory ReportAttachmentModel.fromJson(Map<String, dynamic> json) {
     final rawSize = json['size'] ?? json['size_bytes'] ?? json['sizeBytes'];
@@ -162,6 +241,47 @@ class ReportExpenseModel {
     if (description != null) 'description': description,
   };
 
+  /// Serializes expense for Supabase `public.report_expenses` row.
+  Map<String, dynamic> toSupabaseJson({
+    required String reportId,
+    required String userId,
+    bool includeId = true,
+  }) {
+    final cleanId = IdUtils.unprefix(id).trim();
+    final cleanReportId = IdUtils.unprefix(reportId).trim();
+    final cleanUserId = userId.trim();
+
+    final upperStatus = status.trim().toUpperCase();
+    final validStatus =
+        ['PAID', 'PENDING', 'INSURANCE', 'REIMBURSED'].contains(upperStatus)
+            ? upperStatus
+            : 'PAID';
+
+    return {
+      if (includeId && cleanId.isNotEmpty && UuidUtils.isValidUuid(cleanId))
+        'id': cleanId,
+      'report_id': cleanReportId,
+      'user_id': cleanUserId,
+      'amount': amount >= 0 ? amount : 0.0,
+      'currency':
+          currency.trim().isNotEmpty ? currency.trim().toUpperCase() : 'INR',
+      'status': validStatus,
+      if (description != null && description!.trim().isNotEmpty)
+        'description': description!.trim(),
+    };
+  }
+
+  /// Deserializes expense from Supabase PostgREST JSON (`public.report_expenses`).
+  factory ReportExpenseModel.fromSupabaseJson(Map<String, dynamic> json) {
+    return ReportExpenseModel(
+      id: json['id']?.toString() ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      currency: json['currency']?.toString() ?? 'INR',
+      status: (json['status']?.toString() ?? 'PAID').toUpperCase(),
+      description: json['description']?.toString(),
+    );
+  }
+
   factory ReportExpenseModel.fromJson(Map<String, dynamic> json) {
     return ReportExpenseModel(
       id: json['id']?.toString() ?? '',
@@ -250,7 +370,7 @@ class ReportModel {
     'updated_at': updatedAt?.toIso8601String(),
   };
 
-  /// Clean server metadata representation for Laravel Sanctum REST API.
+  /// Historical server metadata representation (retained for backward compatibility).
   /// Omits device-local file paths to prepare for multipart boundary separation.
   Map<String, dynamic> toServerMetadataJson() {
     final cleanProfileId =
@@ -287,6 +407,169 @@ class ReportModel {
       if (clientUuid != null && clientUuid!.trim().isNotEmpty)
         'client_uuid': clientUuid!.trim(),
     };
+  }
+
+  /// Serializes report for Supabase `public.reports` row.
+  Map<String, dynamic> toSupabaseJson({bool includeId = true}) {
+    final cleanId = IdUtils.unprefix(id).trim();
+    final cleanProfileId = IdUtils.unprefix(profileId).trim();
+    final cleanDoctorId = IdUtils.unprefix(doctorId).trim();
+    final cleanHospitalId = IdUtils.unprefix(hospitalId).trim();
+    final cleanConsultationId = IdUtils.unprefix(consultationId).trim();
+
+    final dateStr = date.toIso8601String().split('T').first;
+    final cat = normalizeCategoryToSupabase(category);
+
+    final map = <String, dynamic>{
+      if (includeId && cleanId.isNotEmpty && UuidUtils.isValidUuid(cleanId))
+        'id': cleanId,
+      'profile_id': cleanProfileId,
+      'title': title.trim(),
+      'category': cat,
+      'report_date': dateStr,
+      if (UuidUtils.isValidUuid(cleanDoctorId)) 'doctor_id': cleanDoctorId,
+      if (doctorName != null && doctorName!.trim().isNotEmpty)
+        'doctor_name': doctorName!.trim(),
+      if (UuidUtils.isValidUuid(cleanHospitalId))
+        'hospital_id': cleanHospitalId,
+      if (hospitalName != null && hospitalName!.trim().isNotEmpty)
+        'hospital_name': hospitalName!.trim(),
+      if (UuidUtils.isValidUuid(cleanConsultationId))
+        'consultation_id': cleanConsultationId,
+      if (consultationTitle != null && consultationTitle!.trim().isNotEmpty)
+        'consultation_title': consultationTitle!.trim(),
+      if (notes != null && notes!.trim().isNotEmpty) 'notes': notes!.trim(),
+      if (createdAt != null) 'created_at': createdAt!.toUtc().toIso8601String(),
+      if (updatedAt != null) 'updated_at': updatedAt!.toUtc().toIso8601String(),
+    };
+
+    if (clientUuid != null && UuidUtils.isValidUuid(clientUuid!.trim())) {
+      map['client_uuid'] = clientUuid!.trim();
+    }
+
+    return map;
+  }
+
+  /// Deserializes report from Supabase PostgREST JSON (`public.reports`).
+  factory ReportModel.fromSupabaseJson(Map<String, dynamic> json) {
+    final cUuid =
+        json['client_uuid']?.toString() ?? json['clientUuid']?.toString();
+
+    // Attachments can come as 'report_attachments' (from joined PostgREST query) or 'attachments'
+    final rawAttachments =
+        json['report_attachments'] ?? json['attachments'];
+    final List<ReportAttachmentModel> parsedAttachments = [];
+    if (rawAttachments is List) {
+      for (final a in rawAttachments) {
+        if (a is Map) {
+          parsedAttachments.add(
+            ReportAttachmentModel.fromSupabaseJson(
+              Map<String, dynamic>.from(a),
+            ),
+          );
+        }
+      }
+    }
+
+    // Expense can come as 'report_expenses' (list from joined PostgREST query or map) or 'expense'
+    ReportExpenseModel? parsedExpense;
+    final rawExpenses = json['report_expenses'] ?? json['expense'];
+    if (rawExpenses is List && rawExpenses.isNotEmpty) {
+      if (rawExpenses.first is Map) {
+        parsedExpense = ReportExpenseModel.fromSupabaseJson(
+          Map<String, dynamic>.from(rawExpenses.first as Map),
+        );
+      }
+    } else if (rawExpenses is Map) {
+      parsedExpense = ReportExpenseModel.fromSupabaseJson(
+        Map<String, dynamic>.from(rawExpenses),
+      );
+    } else if (json['expense_amount'] != null) {
+      parsedExpense = ReportExpenseModel(
+        id: 'exp_${DateTime.now().microsecondsSinceEpoch}',
+        amount: (json['expense_amount'] as num?)?.toDouble() ?? 0.0,
+        status: (json['expense_status']?.toString() ?? 'PAID').toUpperCase(),
+        currency: json['expense_currency']?.toString() ?? 'INR',
+      );
+    }
+
+    return ReportModel(
+      id: json['id']?.toString() ?? '',
+      profileId:
+          json['profile_id']?.toString() ??
+          json['profileId']?.toString() ??
+          '',
+      title: json['title'] as String? ?? '',
+      category: normalizeCategoryToLocal(
+        json['category'] as String? ?? 'OTHER',
+      ),
+      date: json['report_date'] != null
+          ? DateTime.tryParse(json['report_date'].toString())?.toLocal() ??
+              DateTime.now()
+          : (json['date'] != null
+              ? DateTime.tryParse(json['date'].toString())?.toLocal() ??
+                  DateTime.now()
+              : DateTime.now()),
+      doctorId: json['doctor_id']?.toString() ?? json['doctorId']?.toString(),
+      doctorName:
+          json['doctor_name'] as String? ?? json['doctor'] as String?,
+      hospitalId:
+          json['hospital_id']?.toString() ?? json['hospitalId']?.toString(),
+      hospitalName:
+          json['hospital_name'] as String? ?? json['hospital'] as String?,
+      consultationId:
+          json['consultation_id']?.toString() ??
+          json['consultationId']?.toString(),
+      consultationTitle:
+          json['consultation_title'] as String? ??
+          json['consultationTitle'] as String?,
+      notes: json['notes'] as String?,
+      attachments: parsedAttachments,
+      expense: parsedExpense,
+      clientUuid: cUuid,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())?.toLocal()
+          : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'].toString())?.toLocal()
+          : null,
+    );
+  }
+
+  static String normalizeCategoryToSupabase(String rawCategory) {
+    final cat = rawCategory.trim().toUpperCase();
+    switch (cat) {
+      case 'LAB TEST':
+      case 'LAB_TEST':
+      case 'LABTEST':
+      case 'LAB REPORT':
+      case 'LABORATORY':
+        return 'LAB TEST';
+      case 'IMAGING':
+      case 'IMAGING / RADIOLOGY':
+      case 'RADIOLOGY':
+      case 'X-RAY':
+        return 'IMAGING';
+      case 'PRESCRIPTION':
+      case 'RX':
+        return 'PRESCRIPTION';
+      case 'DISCHARGE':
+      case 'DISCHARGE SUMMARY':
+        return 'DISCHARGE';
+      case 'CERTIFICATE':
+      case 'MEDICAL CERTIFICATE':
+        return 'CERTIFICATE';
+      case 'VACCINATION':
+      case 'VACCINE':
+        return 'VACCINATION';
+      case 'REFERRAL':
+      case 'REFERRAL LETTER':
+        return 'REFERRAL';
+      case 'OTHER':
+      case 'OTHERS':
+      default:
+        return 'OTHER';
+    }
   }
 
   /// Alias for toServerMetadataJson() matching cross-module API serialization convention.

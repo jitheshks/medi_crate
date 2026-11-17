@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_typography.dart';
@@ -76,66 +76,78 @@ class AppBottomSheet extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding:
-              padding ??
-              EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 16,
-                bottom: bottomInset + 20,
-              ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (showDragHandle) ...[
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colorScheme.outline,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final effectiveBottomPadding =
+                constraints.maxHeight <= bottomInset + 100
+                    ? 20.0
+                    : bottomInset + 20.0;
+
+            return Padding(
+              padding:
+                  padding ??
+                  EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    top: 16,
+                    bottom: effectiveBottomPadding,
                   ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              if (title != null || titleWidget != null) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child:
-                          titleWidget ??
-                          Text(
-                            title!,
-                            style: AppTypography.h2.copyWith(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (showDragHandle) ...[
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colorScheme.outline,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (title != null || titleWidget != null) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child:
+                              titleWidget ??
+                              Text(
+                                title!,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.h2.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 18,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                        ),
+                        if (trailing != null)
+                          trailing!
+                        else if (showCloseButton)
+                          IconButton(
+                            icon: Icon(
+                              Icons.close,
+                              size: 20,
                               color: colorScheme.onSurface,
                             ),
+                            onPressed:
+                                onClose ?? () => Navigator.of(context).pop(),
                           ),
+                      ],
                     ),
-                    if (trailing != null)
-                      trailing!
-                    else if (showCloseButton)
-                      IconButton(
-                        icon: Icon(
-                          Icons.close,
-                          size: 20,
-                          color: colorScheme.onSurface,
-                        ),
-                        onPressed: onClose ?? () => Navigator.of(context).pop(),
-                      ),
+                    const SizedBox(height: 12),
                   ],
-                ),
-                const SizedBox(height: 12),
-              ],
-              child,
-            ],
-          ),
+                  Flexible(child: child),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );

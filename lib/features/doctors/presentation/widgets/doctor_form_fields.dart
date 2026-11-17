@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -78,53 +78,28 @@ class DoctorFormFields extends StatelessWidget {
           onRemoveHospital: onRemoveHospital,
         ),
         const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isTwoColumn = constraints.maxWidth >= 340;
+            if (isTwoColumn) {
+              return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildLabel(context, 'PHONE'),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: controller.phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      hintText: '+91 98765 43210',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (val) => Validators.validatePhone(val),
-                  ),
+                  Expanded(child: _buildPhoneField(context)),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(child: _buildEmailField(context)),
                 ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLabel(context, 'EMAIL'),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: controller.emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      hintText: 'doctor@clinic.com',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return null;
-                      return Validators.validateEmail(val);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPhoneField(context),
+                const SizedBox(height: AppSpacing.md),
+                _buildEmailField(context),
+              ],
+            );
+          },
         ),
         const SizedBox(height: AppSpacing.md),
         _buildLabel(context, 'CLINICAL NOTES / REVIEWS'),
@@ -136,6 +111,51 @@ class DoctorFormFields extends StatelessWidget {
             hintText: 'Add consultation habits, fee notes, clinic hours...',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhoneField(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel(context, 'PHONE'),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller.phoneController,
+          keyboardType: TextInputType.phone,
+          decoration: InputDecoration(
+            hintText: '+91 98765 43210',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          validator: (val) => Validators.validatePhone(val),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmailField(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel(context, 'EMAIL'),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller.emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            hintText: 'doctor@clinic.com',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          validator: (val) {
+            if (val == null || val.trim().isEmpty) return null;
+            return Validators.validateEmail(val);
+          },
         ),
       ],
     );

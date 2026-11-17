@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// DetailLinkedRecordCard renders a tappable card representing a referenced or linked record.
 class DetailLinkedRecordCard extends StatelessWidget {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// AppIcons provides standard Material and Cupertino icon definitions for MediCrate,
 /// avoiding third-party IconData inheritance incompatibilities.

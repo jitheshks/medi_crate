@@ -1,47 +1,106 @@
 import 'dart:async';
 
-import '../../../../core/api/list_pull_support.dart';
 import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/storage/hive_profile_query_helper.dart';
 import '../../../../core/storage/hive_service.dart';
 import '../../../../core/sync/models/sync_queue_item.dart';
 import '../../../../core/sync/pending_mutation_guard.dart';
+import '../../../../core/sync/pulled_record_comparison.dart';
 import '../../../../core/sync/sync_service.dart';
 import '../../../../core/utils/id_utils.dart';
-import '../datasources/remote/appointment_remote_data_source.dart';
+import '../datasources/remote/supabase_appointment_remote_data_source.dart';
 import '../models/appointment_model.dart';
-import '../sync/appointment_sync_handler.dart';
 
 /// AppointmentRepository manages profile-scoped doctor appointments in Hive storage
-/// with REST API synchronization (AP1 - AP5).
+/// with Supabase synchronization.
 class AppointmentRepository {
   final HiveService hiveService;
   final SyncService? syncService;
-  final AppointmentRemoteDataSource? remoteDataSource;
+  final SupabaseAppointmentRemoteDataSource? supabaseRemoteDataSource;
   final ConnectivityService? connectivityService;
 
-  /// Post-pull freshness signal (Phase 3): invoked once, after the Hive merge,
+  /// Post-pull freshness signal: invoked once, after the Hive merge,
   /// only when a pull actually changed local state.
   final void Function()? onPullMerged;
 
   final Map<String, Future<void>> _inFlightPulls = {};
 
-  /// Whether the last completed pull retrieved the full server dataset
-  /// (`received >= data.total`). Exposed for tests.
-  bool lastPullComplete = true;
-
   AppointmentRepository({
     required this.hiveService,
     this.syncService,
-    this.remoteDataSource,
+    this.supabaseRemoteDataSource,
     this.connectivityService,
     this.onPullMerged,
+    dynamic remoteDataSource,
   });
 
   /// Normalizes key prefix for appointment storage.
   String _normalizeAppointmentId(String rawId) {
     if (rawId.startsWith('appointment_')) return rawId;
+    if (rawId.startsWith('apt_')) return 'appointment_${rawId.substring(4)}';
     return 'appointment_$rawId';
+  }
+
+  String? _resolveCurrentUserId() {
+    try {
+      final userMap = hiveService.authBox.get('current_user');
+      if (userMap is Map) {
+        final id = (userMap['id'] ?? userMap['user_id'] ?? userMap['userId'])
+            ?.toString();
+        if (id != null && id.trim().isNotEmpty) {
+          return id.trim();
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String? _resolveProfileUuid(String profileId, String ownerUserId) {
+    final clean = IdUtils.unprefix(profileId).trim();
+    try {
+      final box = hiveService.profileBox;
+      final raw =
+          box.get(profileId) ?? box.get(clean) ?? box.get('prof_$clean');
+      Map? direct;
+      if (raw is Map) {
+        direct = raw;
+      } else {
+        for (final val in box.values) {
+          final pId =
+              (val['profile_id'] ?? val['profileId'] ?? val['id'])?.toString();
+          if (pId != null &&
+              (IdUtils.matches(pId, profileId) || IdUtils.matches(pId, clean))) {
+            direct = val;
+            break;
+          }
+        }
+      }
+      if (direct != null) {
+        final profOwner = (direct['owner_user_id'] ??
+                direct['ownerUserId'] ??
+                direct['user_id'])
+            ?.toString();
+        if (profOwner != null &&
+            profOwner.isNotEmpty &&
+            !IdUtils.matches(profOwner, ownerUserId)) {
+          return null;
+        }
+
+        final id =
+            (direct['profile_id'] ?? direct['profileId'] ?? direct['id'])?.toString();
+        if (id != null && UuidUtils.isValidUuid(IdUtils.unprefix(id))) {
+          return IdUtils.unprefix(id).trim();
+        }
+        final cUuid =
+            (direct['client_uuid'] ?? direct['clientUuid'])?.toString();
+        if (cUuid != null && UuidUtils.isValidUuid(cUuid)) {
+          return cUuid.trim();
+        }
+      }
+    } catch (_) {}
+
+    if (UuidUtils.isValidUuid(clean)) return clean;
+    return null;
   }
 
   /// Retrieves raw maps for appointments belonging to [profileId].
@@ -67,7 +126,7 @@ class AppointmentRepository {
     int limit = 20,
   }) async {
     // 1. Dispatch background pull-sync asynchronously (unawaited)
-    if (remoteDataSource != null) {
+    if (supabaseRemoteDataSource != null) {
       unawaited(
         pullAppointments(
           profileId,
@@ -124,7 +183,9 @@ class AppointmentRepository {
     String? sort,
     int limit = 20,
   }) {
-    if (remoteDataSource == null) return Future.value();
+    if (supabaseRemoteDataSource == null) {
+      return Future.value();
+    }
     final existing = _inFlightPulls[profileId];
     if (existing != null) return existing;
 
@@ -157,41 +218,34 @@ class AppointmentRepository {
     String? sort,
     int limit = 20,
   }) async {
-    if (SyncService.isRemotePushSuspended) return;
-    try {
-      final numericProfileId = IdUtils.resolveServerProfileId(
-        profileBox: hiveService.profileBox,
-        profileId: profileId,
-      );
-      if (numericProfileId == null) return;
+    if (supabaseRemoteDataSource != null) {
+      try {
+        final ownerUserId = _resolveCurrentUserId();
+        if (ownerUserId == null || ownerUserId.isEmpty) return;
 
-      final isOnline = connectivityService != null
-          ? await connectivityService!.checkConnectivity()
-          : true;
+        final profileUuid = _resolveProfileUuid(profileId, ownerUserId);
+        if (profileUuid == null || profileUuid.isEmpty) return;
 
-      if (!isOnline) return;
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (!isOnline) return;
 
-      final remoteList = await fetchCompleteList(
-        (batchLimit, onTotal) => remoteDataSource!.fetchAppointments(
-          profileId: numericProfileId,
+        final remoteList = await supabaseRemoteDataSource!.fetchAppointments(
+          ownerUserId: ownerUserId,
+          profileId: profileUuid,
           status: status,
-          doctorId: doctorId,
-          hospitalId: hospitalId,
+          doctorId: doctorId?.toString(),
+          hospitalId: hospitalId?.toString(),
           from: from,
           to: to,
-          sort: sort,
-          limit: batchLimit,
-          onTotal: onTotal,
-        ),
-        onComplete: (c) => lastPullComplete = c,
-      );
+          limit: limit,
+        );
 
-      final box = hiveService.userBox;
-      var pulledChanged = false;
-      for (final raw in remoteList) {
-        final serverId = raw['id']?.toString();
-        if (serverId != null) {
-          final remoteModel = AppointmentModel.fromJson(raw);
+        final box = hiveService.userBox;
+        var pulledChanged = false;
+        for (final remoteModel in remoteList) {
+          final serverId = remoteModel.id;
           final key = _normalizeAppointmentId(serverId);
 
           // Guard against overwriting pending local mutations (I2-C2)
@@ -226,17 +280,19 @@ class AppointmentRepository {
           if (pulledRecordChanged(box.get(key), encoded)) pulledChanged = true;
           await box.put(key, encoded);
         }
-      }
 
-      if (pulledChanged) {
-        try {
-          onPullMerged?.call();
-        } catch (_) {}
+        if (pulledChanged) {
+          try {
+            onPullMerged?.call();
+          } catch (_) {}
+        }
+      } catch (_) {
+        // Fallback seamlessly to local Hive storage on network / API error
+        // DO NOT fall back to legacy remoteDataSource!
+      } finally {
+        _inFlightPulls.remove(profileId);
       }
-    } catch (_) {
-      // Fallback seamlessly to local Hive storage on network / API error
-    } finally {
-      _inFlightPulls.remove(profileId);
+      return;
     }
   }
 
@@ -265,40 +321,48 @@ class AppointmentRepository {
       }
     }
 
-    final cleanId = IdUtils.unprefix(appointmentId);
-    final numericId = IdUtils.toServerIntId(cleanId);
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId();
+      final profileUuid = ownerUserId != null
+          ? _resolveProfileUuid(profileId, ownerUserId)
+          : null;
 
-    if (remoteDataSource != null && numericId != null) {
-      final isOnline = connectivityService != null
-          ? await connectivityService!.checkConnectivity()
-          : true;
-
-      if (isOnline) {
-        try {
-          final remoteRaw = await remoteDataSource!.getAppointment(numericId);
-          final remoteModel = AppointmentModel.fromJson(remoteRaw);
-
-          // Guard against overwriting pending local mutations (I2-C2)
-          if (!PendingMutationGuard.hasPendingMutation(
-            syncQueueBox: hiveService.syncQueueBox,
-            profileBox: hiveService.profileBox,
-            entity: 'appointment',
-            profileId: profileId,
-            remoteId: key,
-            clientUuid: remoteModel.clientUuid,
-          )) {
-            final merged = remoteModel.copyWith(
-              id: key,
-              profileId: profileId,
-              departmentId:
-                  localModel?.departmentId ?? remoteModel.departmentId,
-              clientUuid: localModel?.clientUuid ?? remoteModel.clientUuid,
+      if (ownerUserId != null && profileUuid != null) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (isOnline) {
+          try {
+            final cleanId = IdUtils.unprefix(appointmentId);
+            final remoteModel =
+                await supabaseRemoteDataSource!.getAppointmentById(
+              appointmentId: cleanId,
+              ownerUserId: ownerUserId,
+              profileId: profileUuid,
             );
-            await box.put(key, merged.toJson());
-            return merged;
-          }
-        } catch (_) {
-          // Fallback seamlessly to local cache on error
+            if (remoteModel != null) {
+              final remoteKey = _normalizeAppointmentId(remoteModel.id);
+              if (!PendingMutationGuard.hasPendingMutation(
+                syncQueueBox: hiveService.syncQueueBox,
+                profileBox: hiveService.profileBox,
+                entity: 'appointment',
+                profileId: profileId,
+                remoteId: remoteKey,
+                clientUuid: remoteModel.clientUuid,
+              )) {
+                final merged = remoteModel.copyWith(
+                  id: remoteKey,
+                  profileId: profileId,
+                  departmentId:
+                      localModel?.departmentId ?? remoteModel.departmentId,
+                  clientUuid:
+                      localModel?.clientUuid ?? remoteModel.clientUuid,
+                );
+                await box.put(remoteKey, merged.toJson());
+                return merged;
+              }
+            }
+          } catch (_) {}
         }
       }
     }
@@ -348,18 +412,19 @@ class AppointmentRepository {
     final isNumericServerId =
         IdUtils.toServerIntId(IdUtils.unprefix(id)) != null;
     await box.put(id, payload);
+    if (rawId.toString().isNotEmpty && rawId.toString() != id) {
+      await box.delete(rawId);
+    }
 
     if (syncService != null) {
-      final cleanServerPayload = AppointmentSyncHandler.toServerPayload(
-        payload,
-      );
-      cleanServerPayload['id'] = id;
+      final queuePayload = Map<String, dynamic>.from(payload);
+      queuePayload['id'] = id;
       await syncService!.addToQueue(
         SyncQueueItem(
           id: 'sync_appointment_${DateTime.now().millisecondsSinceEpoch}',
           entity: 'appointments',
           operation: isNumericServerId ? 'update' : 'create',
-          payload: cleanServerPayload,
+          payload: queuePayload,
           createdAt: DateTime.now(),
         ),
       );
@@ -399,27 +464,94 @@ class AppointmentRepository {
       updatedAt: DateTime.now(),
     );
 
-    final isNumericServerId =
-        IdUtils.toServerIntId(IdUtils.unprefix(id)) != null;
-    await box.put(id, updated.toJson());
+    final cleanId = IdUtils.unprefix(rawId);
+    final isExistingUuid = UuidUtils.isValidUuid(cleanId);
 
-    if (syncService != null) {
-      final cleanServerPayload = AppointmentSyncHandler.toServerPayload(
-        updated.toJson(),
+    await box.put(id, updated.toJson());
+    if (rawId.isNotEmpty && rawId != id) {
+      await box.delete(rawId);
+    }
+
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId();
+      final profileUuid = ownerUserId != null
+          ? _resolveProfileUuid(profileId, ownerUserId)
+          : null;
+
+      if (ownerUserId != null && profileUuid != null) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (isOnline) {
+          try {
+            AppointmentModel remoteResult;
+            if (isExistingUuid) {
+              remoteResult = await supabaseRemoteDataSource!.updateAppointment(
+                appointment: updated,
+                ownerUserId: ownerUserId,
+                profileId: profileUuid,
+              );
+              final normKey = _normalizeAppointmentId(remoteResult.id);
+              final synced = remoteResult.copyWith(id: normKey);
+              await box.put(normKey, synced.toJson());
+              return synced;
+            } else {
+              remoteResult = await supabaseRemoteDataSource!.createAppointment(
+                appointment: updated,
+                ownerUserId: ownerUserId,
+                profileId: profileUuid,
+              );
+              final normKey = _normalizeAppointmentId(remoteResult.id);
+              if (rawId.isNotEmpty && rawId != normKey) {
+                await box.delete(rawId);
+                await box.delete(id);
+              }
+              final synced = remoteResult.copyWith(id: normKey);
+              await box.put(normKey, synced.toJson());
+              return synced;
+            }
+          } catch (_) {
+            // Queue for offline sync on error
+            await _queueAppointmentMutation(
+              operation: isExistingUuid ? 'update' : 'create',
+              payload: updated.toJson(),
+            );
+            return updated;
+          }
+        }
+      }
+
+      // Offline or unresolved profile
+      await _queueAppointmentMutation(
+        operation: isExistingUuid ? 'update' : 'create',
+        payload: updated.toJson(),
       );
-      cleanServerPayload['id'] = id;
+      return updated;
+    }
+
+    await _queueAppointmentMutation(
+      operation: isExistingUuid ? 'update' : 'create',
+      payload: updated.toJson(),
+    );
+
+    return updated;
+  }
+
+  Future<void> _queueAppointmentMutation({
+    required String operation,
+    required Map<String, dynamic> payload,
+  }) async {
+    if (syncService != null) {
       await syncService!.addToQueue(
         SyncQueueItem(
           id: 'sync_appointment_${DateTime.now().millisecondsSinceEpoch}',
           entity: 'appointments',
-          operation: isNumericServerId ? 'update' : 'create',
-          payload: cleanServerPayload,
+          operation: operation,
+          payload: payload,
           createdAt: DateTime.now(),
         ),
       );
     }
-
-    return updated;
   }
 
   /// Updates status of an appointment and queues sync (AP4).
@@ -442,7 +574,8 @@ class AppointmentRepository {
   Future<void> deleteAppointment(String profileId, String appointmentId) async {
     final key = _normalizeAppointmentId(appointmentId);
     final box = hiveService.userBox;
-    final val = box.get(key) ?? box.get(appointmentId);
+    final cleanId = IdUtils.unprefix(appointmentId);
+    final val = box.get(key) ?? box.get(appointmentId) ?? box.get(cleanId);
     if (val is Map) {
       final map = Map<String, dynamic>.from(val);
       final storedProfId = (map['profile_id'] ?? map['profileId'])?.toString();
@@ -455,6 +588,50 @@ class AppointmentRepository {
       }
     }
     await box.delete(appointmentId);
+    if (cleanId.isNotEmpty) {
+      await box.delete(cleanId);
+      await box.delete('apt_$cleanId');
+    }
+
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId();
+      final profileUuid = ownerUserId != null
+          ? _resolveProfileUuid(profileId, ownerUserId)
+          : null;
+      final isUuid = UuidUtils.isValidUuid(cleanId);
+
+      bool deletedRemotely = false;
+      if (ownerUserId != null && profileUuid != null && isUuid) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (isOnline) {
+          try {
+            await supabaseRemoteDataSource!.deleteAppointment(
+              appointmentId: cleanId,
+              ownerUserId: ownerUserId,
+              profileId: profileUuid,
+            );
+            deletedRemotely = true;
+          } catch (_) {
+            deletedRemotely = false;
+          }
+        }
+      }
+
+      if (!deletedRemotely && isUuid) {
+        await syncService?.addToQueue(
+          SyncQueueItem(
+            id: 'sync_appointment_${DateTime.now().millisecondsSinceEpoch}',
+            entity: 'appointments',
+            operation: 'delete',
+            payload: {'id': key, 'profile_id': profileId},
+            createdAt: DateTime.now(),
+          ),
+        );
+      }
+      return;
+    }
 
     if (syncService != null) {
       await syncService!.addToQueue(

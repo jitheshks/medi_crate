@@ -82,7 +82,9 @@ class UserModel {
       id: user.id,
       email: user.email ?? '',
       name: name,
-      dateOfBirth: meta['dob']?.toString() ?? meta['dateOfBirth']?.toString(),
+      dateOfBirth: meta['dob']?.toString() ??
+          meta['dateOfBirth']?.toString() ??
+          meta['date_of_birth']?.toString(),
       gender: meta['gender']?.toString(),
       bloodGroup:
           meta['blood_group']?.toString() ?? meta['bloodGroup']?.toString(),
@@ -124,7 +126,9 @@ class UserModel {
       id: map['id']?.toString() ?? '',
       email: map['email']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
-      dateOfBirth: map['dateOfBirth']?.toString() ?? map['dob']?.toString(),
+      dateOfBirth: map['dateOfBirth']?.toString() ??
+          map['dob']?.toString() ??
+          map['date_of_birth']?.toString(),
       gender: map['gender']?.toString(),
       bloodGroup:
           map['bloodGroup']?.toString() ?? map['blood_group']?.toString(),

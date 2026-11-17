@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../utils/app_logger.dart';
+
 /// Exception thrown when Supabase configuration is missing or invalid.
 class SupabaseConfigurationException implements Exception {
   final String message;
@@ -47,41 +49,52 @@ abstract class SupabaseConfig {
   }
 
   /// Validates Supabase environment configuration.
+  /// Precedence: explicit argument > non-empty dotenv entry > non-empty compile-time define.
   /// Returns a record of `(url, anonKey)` if valid, or throws [SupabaseConfigurationException].
   static ({String url, String anonKey}) validateConfig({
     String? url,
     String? anonKey,
   }) {
+    final loadedEnvUrl =
+        dotenv.isInitialized ? dotenv.maybeGet(envUrlKey)?.trim() : null;
+    const compileTimeUrl = String.fromEnvironment(envUrlKey);
     final resolvedUrl =
-        url ??
-        (dotenv.isInitialized ? dotenv.maybeGet(envUrlKey) : null) ??
-        const String.fromEnvironment(envUrlKey, defaultValue: defaultUrl);
+        url?.trim() ??
+        ((loadedEnvUrl != null && loadedEnvUrl.isNotEmpty)
+            ? loadedEnvUrl
+            : null) ??
+        (compileTimeUrl.trim().isNotEmpty ? compileTimeUrl.trim() : defaultUrl);
 
+    final loadedEnvAnonKey =
+        dotenv.isInitialized ? dotenv.maybeGet(envAnonKey)?.trim() : null;
+    const compileTimeAnonKey = String.fromEnvironment(envAnonKey);
     final resolvedAnonKey =
-        anonKey ??
-        (dotenv.isInitialized ? dotenv.maybeGet(envAnonKey) : null) ??
-        const String.fromEnvironment(envAnonKey);
+        anonKey?.trim() ??
+        ((loadedEnvAnonKey != null && loadedEnvAnonKey.isNotEmpty)
+            ? loadedEnvAnonKey
+            : null) ??
+        compileTimeAnonKey.trim();
 
-    if (resolvedUrl.trim().isEmpty) {
+    if (resolvedUrl.isEmpty) {
       throw const SupabaseConfigurationException(
         'Missing SUPABASE_URL. Please set SUPABASE_URL in your .env or environment.',
       );
     }
 
-    final uri = Uri.tryParse(resolvedUrl.trim());
+    final uri = Uri.tryParse(resolvedUrl);
     if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
       throw SupabaseConfigurationException(
         'Invalid SUPABASE_URL: "$resolvedUrl". Must be a valid URL with http/https scheme.',
       );
     }
 
-    if (resolvedAnonKey.trim().isEmpty) {
+    if (resolvedAnonKey.isEmpty) {
       throw const SupabaseConfigurationException(
         'Missing SUPABASE_ANON_KEY. Please set SUPABASE_ANON_KEY in your .env or environment.',
       );
     }
 
-    return (url: resolvedUrl.trim(), anonKey: resolvedAnonKey.trim());
+    return (url: resolvedUrl, anonKey: resolvedAnonKey);
   }
 
   /// Initializes the Supabase singleton instance exactly once.
@@ -102,6 +115,12 @@ abstract class SupabaseConfig {
     }
 
     final config = validateConfig(url: url, anonKey: anonKey);
+    final uri = Uri.parse(config.url);
+
+    AppLogger.info(
+      'Initializing Supabase client with host: ${uri.host}, anonKey configured: ${config.anonKey.isNotEmpty}',
+      'SupabaseConfig',
+    );
 
     try {
       await Supabase.initialize(
@@ -109,13 +128,19 @@ abstract class SupabaseConfig {
         publishableKey: config.anonKey,
       );
       _isInitialized = true;
-      debugPrint(
-        '[SupabaseConfig] Initialized successfully with URL: ${config.url}',
+      AppLogger.info(
+        'Initialized successfully for host: ${uri.host}',
+        'SupabaseConfig',
       );
       return Supabase.instance.client;
-    } catch (e) {
+    } catch (e, stack) {
       _isInitialized = false;
-      debugPrint('[SupabaseConfig] Initialization failed: $e');
+      AppLogger.error(
+        'Initialization failed for host: ${uri.host}',
+        e,
+        stack,
+        'SupabaseConfig',
+      );
       rethrow;
     }
   }

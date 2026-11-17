@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -39,76 +39,28 @@ class ProfileDemographicsInputSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isTwoColumn = constraints.maxWidth >= 330;
+            if (isTwoColumn) {
+              return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Gender',
-                    style: AppTypography.caption.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedGender,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colorScheme.outline),
-                      ),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'Male', child: Text('Male')),
-                      DropdownMenuItem(value: 'Female', child: Text('Female')),
-                      DropdownMenuItem(value: 'Others', child: Text('Others')),
-                    ],
-                    onChanged: onGenderChanged,
-                  ),
+                  Expanded(child: _buildGenderField(context, colorScheme)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildBloodGroupField(context, colorScheme)),
                 ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Blood Group',
-                    style: AppTypography.caption.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedBloodGroup,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colorScheme.outline),
-                      ),
-                    ),
-                    items: bloodGroups
-                        .map(
-                          (bg) => DropdownMenuItem(value: bg, child: Text(bg)),
-                        )
-                        .toList(),
-                    onChanged: onBloodGroupChanged,
-                  ),
-                ],
-              ),
-            ),
-          ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildGenderField(context, colorScheme),
+                const SizedBox(height: 16),
+                _buildBloodGroupField(context, colorScheme),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 16),
         Text(
@@ -130,16 +82,21 @@ class ProfileDemographicsInputSection extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  selectedDob != null
-                      ? "${selectedDob!.day}/${selectedDob!.month}/${selectedDob!.year}"
-                      : 'Select Birth Date',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: selectedDob != null
-                        ? colorScheme.onSurface
-                        : colorScheme.onSurfaceVariant,
+                Expanded(
+                  child: Text(
+                    selectedDob != null
+                        ? "${selectedDob!.day}/${selectedDob!.month}/${selectedDob!.year}"
+                        : 'Select Birth Date',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: selectedDob != null
+                          ? colorScheme.onSurface
+                          : colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Icon(
                   AppIcons.calendar,
                   size: 18,
@@ -148,6 +105,95 @@ class ProfileDemographicsInputSection extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenderField(BuildContext context, ColorScheme colorScheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Gender',
+          style: AppTypography.caption.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          initialValue: selectedGender,
+          isExpanded: true,
+          hint: const Text('Select Gender', overflow: TextOverflow.ellipsis),
+          decoration: InputDecoration(
+            hintText: 'Select Gender',
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: colorScheme.outline),
+            ),
+          ),
+          items: const [
+            DropdownMenuItem(
+              value: 'Male',
+              child: Text('Male', overflow: TextOverflow.ellipsis),
+            ),
+            DropdownMenuItem(
+              value: 'Female',
+              child: Text('Female', overflow: TextOverflow.ellipsis),
+            ),
+            DropdownMenuItem(
+              value: 'Others',
+              child: Text('Others', overflow: TextOverflow.ellipsis),
+            ),
+          ],
+          onChanged: onGenderChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBloodGroupField(BuildContext context, ColorScheme colorScheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Blood Group',
+          style: AppTypography.caption.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          initialValue: selectedBloodGroup,
+          isExpanded: true,
+          hint: const Text(
+            'Select Blood Group',
+            overflow: TextOverflow.ellipsis,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Select Blood Group',
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: colorScheme.outline),
+            ),
+          ),
+          items: bloodGroups
+              .map(
+                (bg) => DropdownMenuItem(
+                  value: bg,
+                  child: Text(bg, overflow: TextOverflow.ellipsis),
+                ),
+              )
+              .toList(),
+          onChanged: onBloodGroupChanged,
         ),
       ],
     );

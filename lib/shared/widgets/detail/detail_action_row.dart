@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// DetailActionRow renders standardized bottom action buttons (Edit, Delete, and optional additional actions).
 class DetailActionRow extends StatefulWidget {

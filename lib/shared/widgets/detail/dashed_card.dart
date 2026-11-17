@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// DashedCard renders a container with a dashed border for placeholder and empty states.
 class DashedCard extends StatelessWidget {

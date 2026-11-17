@@ -3,52 +3,95 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
-import '../../features/appointments/data/datasources/remote/appointment_remote_data_source.dart';
-import '../../features/appointments/data/sync/appointment_sync_handler.dart';
-import '../../features/consultations/data/datasources/remote/consultation_remote_data_source.dart';
-import '../../features/consultations/data/sync/consultation_sync_handler.dart';
-import '../../features/doctors/data/datasources/remote/doctor_remote_data_source.dart';
-import '../../features/doctors/data/sync/doctor_sync_handler.dart';
-import '../../features/hospitals/data/datasources/remote/hospital_remote_data_source.dart';
-import '../../features/hospitals/data/sync/hospital_sync_handler.dart';
-import '../../features/medicines/data/datasources/remote/medicine_remote_data_source.dart';
-import '../../features/medicines/data/sync/medicine_sync_handler.dart';
-import '../../features/profile/data/datasources/remote/profile_remote_data_source.dart';
-import '../../features/profile/data/datasources/remote/user_remote_data_source.dart';
-import '../../features/profile/data/models/profile_model.dart';
-import '../../features/profile/data/sync/profile_sync_handler.dart';
-import '../../features/reports/data/datasources/remote/report_remote_data_source.dart';
-import '../../features/reports/data/sync/report_sync_handler.dart';
-import '../../features/vitals/data/datasources/remote/vitals_remote_data_source.dart';
-import '../../features/vitals/data/sync/measurement_sync_handler.dart';
-import '../api/api_client.dart';
 import '../connectivity/connectivity_service.dart';
 import '../storage/hive_service.dart';
 import '../utils/id_utils.dart';
 import 'background_sync_service.dart';
 import 'models/sync_queue_item.dart';
 import 'queue_coalescer.dart';
+import 'supabase_sync_coordinator.dart';
 import 'sync_lock.dart';
+import 'sync_rollout_config.dart';
 
 /// SyncService processes pending offline mutations when internet connectivity is available.
+///
+/// Dispatches mutations exclusively through [SupabaseSyncCoordinator] to PostgreSQL
+/// and Supabase Storage. When [isRemoteSyncEnabled] is false, all pending mutations
+/// remain safely stored in Hive.
 class SyncService {
   final HiveService hiveService;
   final ConnectivityService connectivityService;
-  final ApiClient? apiClient;
   final void Function()? onSyncCompleted;
-  final AppointmentRemoteDataSource? _appointmentRemoteDataSource;
-  final ConsultationRemoteDataSource? _consultationRemoteDataSource;
-  final DoctorRemoteDataSource? _doctorRemoteDataSource;
-  final HospitalRemoteDataSource? _hospitalRemoteDataSource;
-  final ReportRemoteDataSource? _reportRemoteDataSource;
-  final MedicineRemoteDataSource? _medicineRemoteDataSource;
-  final VitalsRemoteDataSource? _vitalsRemoteDataSource;
-  final ProfileRemoteDataSource? _profileRemoteDataSource;
-  final UserRemoteDataSource? _userRemoteDataSource;
+  final SupabaseSyncCoordinator? _supabaseSyncCoordinator;
 
-  /// Whether remote push synchronization against legacy Laravel endpoints is suspended.
-  /// Option D target: Suspended to protect offline mutations until Phase 4 Supabase backend.
-  static bool isRemotePushSuspended = true;
+  /// Whether remote push synchronization is enabled.
+  /// Defaults to false. When false, pending mutations remain safely preserved in Hive.
+  /// When true, mutations are dispatched exclusively through [_supabaseSyncCoordinator].
+  static bool isRemoteSyncEnabled = false;
+
+  /// Whether controlled foreground / manual synchronization is permitted.
+  /// When true, explicit manual sync and foreground resume can sync for the
+  /// authenticated user without enabling automatic background sync or global polling.
+  static bool isControlledForegroundSyncEnabled = false;
+
+  /// Registry of authorized internal tester Supabase user UUIDs.
+  /// When [isRemoteSyncEnabled] is false and [isControlledForegroundSyncEnabled] is true,
+  /// only users in this set who have explicitly opted in may synchronize mutations to Supabase.
+  static Set<String> get authorizedTesterUserIds =>
+      SyncRolloutConfig.authorizedTesterUuids;
+
+  /// Checks if [userId] is an authorized internal tester.
+  /// Enforces UUID format validation, global rollout pause, local kill switch,
+  /// and presence in [SyncRolloutConfig.authorizedTesterUuids].
+  static bool isEligibleTester(String? userId) {
+    if (userId == null || userId.trim().isEmpty) return false;
+    final cleanId = userId.trim();
+    if (!UuidUtils.isValidUuid(cleanId)) return false;
+
+    if (SyncRolloutConfig.isLocalKillSwitchActive) return false;
+    if (SyncRolloutConfig.isGlobalRolloutPaused) return false;
+
+    return SyncRolloutConfig.authorizedTesterUuids.contains(cleanId);
+  }
+
+  /// Authorizes an internal tester by Supabase UUID.
+  /// Fails closed if UUID format is invalid.
+  static bool authorizeTester(String userId) {
+    return SyncRolloutConfig.authorizeTester(userId);
+  }
+
+  /// Revokes an internal tester's authorization.
+  static void revokeTester(String userId) {
+    SyncRolloutConfig.revokeTester(userId);
+  }
+
+  /// Clears all authorized testers (fail closed).
+  static void clearAuthorizedTesters() {
+    SyncRolloutConfig.clearAuthorizedTesters();
+  }
+
+  /// Checks whether [userId] has explicitly opted in to foreground synchronization.
+  /// Scoped by user ID in [HiveService.settingsBox] to prevent cross-account leakage.
+  bool isTesterOptedIn(String? userId) {
+    if (userId == null || userId.trim().isEmpty) return false;
+    final val = hiveService.settingsBox.get('sync_opt_in_${userId.trim()}');
+    if (val is Map) {
+      return val['opted_in'] == true;
+    }
+    return false;
+  }
+
+  /// Sets the opt-in preference for [userId] in [HiveService.settingsBox].
+  Future<void> setTesterOptIn(String userId, bool optedIn) async {
+    if (userId.trim().isEmpty) return;
+    await hiveService.settingsBox.put(
+      'sync_opt_in_${userId.trim()}',
+      {
+        'opted_in': optedIn,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+    );
+  }
 
   bool _isSyncing = false;
   StreamSubscription<bool>? _connectivitySub;
@@ -64,26 +107,9 @@ class SyncService {
   SyncService({
     required this.hiveService,
     required this.connectivityService,
-    this.apiClient,
     this.onSyncCompleted,
-    AppointmentRemoteDataSource? customAppointmentRemoteDataSource,
-    ConsultationRemoteDataSource? customConsultationRemoteDataSource,
-    DoctorRemoteDataSource? customDoctorRemoteDataSource,
-    HospitalRemoteDataSource? customHospitalRemoteDataSource,
-    ReportRemoteDataSource? customReportRemoteDataSource,
-    MedicineRemoteDataSource? customMedicineRemoteDataSource,
-    VitalsRemoteDataSource? customVitalsRemoteDataSource,
-    ProfileRemoteDataSource? customProfileRemoteDataSource,
-    UserRemoteDataSource? customUserRemoteDataSource,
-  }) : _appointmentRemoteDataSource = customAppointmentRemoteDataSource,
-       _consultationRemoteDataSource = customConsultationRemoteDataSource,
-       _doctorRemoteDataSource = customDoctorRemoteDataSource,
-       _hospitalRemoteDataSource = customHospitalRemoteDataSource,
-       _reportRemoteDataSource = customReportRemoteDataSource,
-       _medicineRemoteDataSource = customMedicineRemoteDataSource,
-       _vitalsRemoteDataSource = customVitalsRemoteDataSource,
-       _profileRemoteDataSource = customProfileRemoteDataSource,
-       _userRemoteDataSource = customUserRemoteDataSource {
+    SupabaseSyncCoordinator? customSupabaseSyncCoordinator,
+  }) : _supabaseSyncCoordinator = customSupabaseSyncCoordinator {
     _connectivitySub = connectivityService.onConnectivityChanged.listen((
       isOnline,
     ) {
@@ -93,95 +119,8 @@ class SyncService {
     });
   }
 
-  ConsultationRemoteDataSource? get consultationRemoteDataSource {
-    if (_consultationRemoteDataSource != null) {
-      return _consultationRemoteDataSource;
-    }
-    if (apiClient != null) {
-      return ConsultationRemoteDataSource(apiClient: apiClient!);
-    }
-    return null;
-  }
-
-  DoctorRemoteDataSource? get doctorRemoteDataSource {
-    if (_doctorRemoteDataSource != null) {
-      return _doctorRemoteDataSource;
-    }
-    if (apiClient != null) {
-      return DoctorRemoteDataSource(apiClient: apiClient!);
-    }
-    return null;
-  }
-
-  HospitalRemoteDataSource? get hospitalRemoteDataSource {
-    if (_hospitalRemoteDataSource != null) {
-      return _hospitalRemoteDataSource;
-    }
-    if (apiClient != null) {
-      return HospitalRemoteDataSource(apiClient: apiClient!);
-    }
-    return null;
-  }
-
-  ReportRemoteDataSource? get reportRemoteDataSource {
-    if (_reportRemoteDataSource != null) {
-      return _reportRemoteDataSource;
-    }
-    if (apiClient != null) {
-      return ReportRemoteDataSource(apiClient: apiClient!);
-    }
-    return null;
-  }
-
-  AppointmentRemoteDataSource? get appointmentRemoteDataSource {
-    if (_appointmentRemoteDataSource != null) {
-      return _appointmentRemoteDataSource;
-    }
-    if (apiClient != null) {
-      return AppointmentRemoteDataSource(apiClient: apiClient!);
-    }
-    return null;
-  }
-
-  MedicineRemoteDataSource? get medicineRemoteDataSource {
-    if (_medicineRemoteDataSource != null) {
-      return _medicineRemoteDataSource;
-    }
-    if (apiClient != null) {
-      return MedicineRemoteDataSource(apiClient: apiClient!);
-    }
-    return null;
-  }
-
-  VitalsRemoteDataSource? get vitalsRemoteDataSource {
-    if (_vitalsRemoteDataSource != null) {
-      return _vitalsRemoteDataSource;
-    }
-    if (apiClient != null) {
-      return VitalsRemoteDataSource(apiClient: apiClient!);
-    }
-    return null;
-  }
-
-  ProfileRemoteDataSource? get profileRemoteDataSource {
-    if (_profileRemoteDataSource != null) {
-      return _profileRemoteDataSource;
-    }
-    if (apiClient != null) {
-      return ProfileRemoteDataSource(apiClient: apiClient!);
-    }
-    return null;
-  }
-
-  UserRemoteDataSource? get userRemoteDataSource {
-    if (_userRemoteDataSource != null) {
-      return _userRemoteDataSource;
-    }
-    if (apiClient != null) {
-      return UserRemoteDataSource(apiClient: apiClient!);
-    }
-    return null;
-  }
+  SupabaseSyncCoordinator? get supabaseSyncCoordinator =>
+      _supabaseSyncCoordinator;
 
   Future<void> addToQueue(SyncQueueItem item) async {
     final box = hiveService.syncQueueBox;
@@ -292,7 +231,11 @@ class SyncService {
         final sid = IdUtils.toServerIntId(
           m['server_profile_id'] ?? m['serverProfileId'],
         );
-        return (sid != null, sid);
+        final hasServerUuid =
+            UuidUtils.isValidUuid(m['profile_id']?.toString()) ||
+            UuidUtils.isValidUuid(m['id']?.toString()) ||
+            UuidUtils.isValidUuid(m['server_profile_id']?.toString());
+        return (sid != null || hasServerUuid, sid);
       }
       return (false, null);
     }
@@ -309,69 +252,141 @@ class SyncService {
       final sid =
           IdUtils.toServerIntId(m['id']) ??
           IdUtils.toServerIntId(key.toString());
-      return (sid != null, sid);
+      final hasServerUuid = UuidUtils.isValidUuid(m['id']?.toString()) ||
+          UuidUtils.isValidUuid(key.toString());
+      return (sid != null || hasServerUuid, sid);
     }
     return (false, null);
   }
 
-  /// Resolves a numeric server id for a DELETE queue item whose payload carries
-  /// a local id or only a `client_uuid`. Scans [userBox] for a record with a
-  /// matching `client_uuid` that already holds a server id.
-  int? _resolveDeleteServerId(String prefix, Map<String, dynamic> payload) {
-    final direct = IdUtils.toServerIntId(payload['id']);
-    if (direct != null) return direct;
-    final uuid = (payload['client_uuid'] ?? payload['clientUuid'])
-        ?.toString()
-        .trim();
-    if (uuid == null || uuid.isEmpty) return null;
-    final userBox = hiveService.userBox;
-    for (final key in userBox.keys) {
-      if (!key.toString().startsWith(prefix)) continue;
-      final raw = userBox.get(key);
-      if (raw is! Map) continue;
-      final m = Map<String, dynamic>.from(raw);
-      final cu = (m['client_uuid'] ?? m['clientUuid'])?.toString().trim();
-      if (cu != uuid) continue;
-      return IdUtils.toServerIntId(m['id']) ??
-          IdUtils.toServerIntId(key.toString());
-    }
-    return null;
-  }
-
   /// Processes all queued mutations according to entity dependency order:
-  /// Hospitals (0) -> Doctors (1) -> Consultations (2) -> Reports (3) -> Others (4)
+  /// Profiles (0) -> Hospitals (1) -> Doctors (2) -> Consultations (3) -> Reports (4) -> Appointments (5) -> Medicines (6) -> Vitals (7)
   ///
-  /// [lockAlreadyHeld] is set by the WorkManager background worker, which claims
-  /// the [SyncLock] lease once for its whole push+pull cycle and then calls this
-  /// method inside that lease. When true this method neither acquires nor
-  /// releases the lease (doing so would see its own valid lease and abort).
+  /// When [isRemoteSyncEnabled] is false, remote synchronization is permitted ONLY
+  /// when [isControlledForegroundSyncEnabled] is true, and the effective user is
+  /// an authorized internal tester who has explicitly opted in.
   Future<void> syncPending({
     bool force = false,
     bool lockAlreadyHeld = false,
+    String? explicitOwnerUserId,
   }) async {
-    // Option D isolation: Suspend legacy Laravel pushes to preserve pending mutations for Phase 4
-    if (isRemotePushSuspended) {
+    if (!isRemoteSyncEnabled) {
+      if (!isControlledForegroundSyncEnabled) {
+        debugPrint(
+          '[SyncService] Remote synchronization is disabled (isRemoteSyncEnabled = false). '
+          'Pending mutations remain safely preserved in Hive.',
+        );
+        return;
+      }
+
+      if (SyncRolloutConfig.isGlobalRolloutPaused) {
+        debugPrint(
+          '[SyncService] Remote synchronization blocked: global rollout is paused. '
+          'Pending mutations remain safely preserved in Hive.',
+        );
+        return;
+      }
+
+      if (SyncRolloutConfig.isLocalKillSwitchActive) {
+        debugPrint(
+          '[SyncService] Remote synchronization blocked: local kill switch is active. '
+          'Pending mutations remain safely preserved in Hive.',
+        );
+        return;
+      }
+
+      final coordinator = _supabaseSyncCoordinator;
+      final effectiveUserId =
+          explicitOwnerUserId ?? coordinator?.authenticatedUserId;
+      if (effectiveUserId == null ||
+          !isEligibleTester(effectiveUserId) ||
+          !isTesterOptedIn(effectiveUserId)) {
+        debugPrint(
+          '[SyncService] Remote synchronization blocked: user $effectiveUserId is not an '
+          'authorized internal tester or has not opted in. '
+          'Pending mutations remain safely preserved in Hive.',
+        );
+        return;
+      }
+    }
+
+    final coordinator = _supabaseSyncCoordinator;
+    if (coordinator == null) {
       debugPrint(
-        '[SyncService] Remote push skipped: legacy Laravel sync suspended. '
-        'Pending mutations preserved in Hive for Phase 4.',
+        '[SyncService] SupabaseSyncCoordinator not configured. '
+        'Deferring pending mutations safely.',
+      );
+      final box = hiveService.syncQueueBox;
+      for (final raw in box.values) {
+        final item = SyncQueueItem.fromMap(Map<String, dynamic>.from(raw));
+        if (item.status == 'pending' || item.status == 'failed') {
+          final entity = item.entity.toLowerCase();
+          final op = item.operation.toLowerCase();
+          final payload = item.payload;
+          final isPrimaryProfileDelete = (entity == 'profile' ||
+                  entity == 'profiles') &&
+              op == 'delete' &&
+              (payload['is_primary'] == true ||
+                  payload['relationship'] == 'Self' ||
+                  item.id.startsWith('prof_primary_') ||
+                  payload['id']?.toString().startsWith('prof_primary_') ==
+                      true);
+
+          if (isPrimaryProfileDelete) {
+            item.status = 'failed';
+            item.retryCount = 99;
+            item.errorMessage =
+                'Primary profile deletion rejected: prohibited by system invariant';
+          } else {
+            item.status = 'deferred';
+          }
+          item.claimToken = null;
+          item.claimedAt = null;
+          await box.put(item.id, item.toMap());
+        }
+      }
+      return;
+    }
+
+    return syncPendingToSupabase(
+      force: force,
+      lockAlreadyHeld: lockAlreadyHeld,
+      explicitOwnerUserId: explicitOwnerUserId,
+    );
+  }
+
+  /// Synchronizes pending offline mutations natively to PostgreSQL and private
+  /// Supabase Storage buckets via [SupabaseSyncCoordinator].
+  ///
+  /// Preserves:
+  /// 1. Entity dependency ordering (Profiles -> Hospitals -> Doctors -> Consultations -> Reports -> Appointments -> Medicines -> Measurements).
+  /// 2. Cross-isolate and cross-context mutual exclusion via [SyncLock].
+  /// 3. Per-mutation lease claims via `claimToken` (P2-F8).
+  /// 4. Exponential backoff and retry budgets (preserving deferred and auth_required items without burn).
+  /// 5. Complete isolation with Supabase as the sole remote backend.
+  Future<void> syncPendingToSupabase({
+    bool force = false,
+    bool lockAlreadyHeld = false,
+    String? explicitOwnerUserId,
+  }) async {
+    final coordinator = _supabaseSyncCoordinator;
+    if (coordinator == null) {
+      debugPrint(
+        '[SyncService] SupabaseSyncCoordinator not configured. '
+        'Cannot synchronize pending mutations to Supabase.',
       );
       return;
     }
 
     if (_isSyncing) return;
 
-    // Cross-context guard: the WorkManager background isolate runs a separate
-    // SyncService whose _isSyncing flag is not shared with this one. The Hive
-    // lease lock prevents both from draining the same queue at once; a stale
-    // lease (crashed holder) auto-expires so sync is never permanently blocked.
     final lock = SyncLock(hiveService.settingsBox);
     final String? lockToken;
     if (lockAlreadyHeld) {
-      lockToken = null; // caller owns the lease; do not re-acquire or release
+      lockToken = null;
     } else {
       lockToken = await lock.tryAcquire();
       if (lockToken == null) {
-        // Another sync processor holds a valid lease. It will finish the queue.
         return;
       }
     }
@@ -382,76 +397,6 @@ class SyncService {
       final isOnline = await connectivityService.checkConnectivity();
       if (!isOnline) return;
 
-      // Pre-flight profile resolution: if profileRemoteDataSource is available and
-      // any profile in profileBox lacks server_profile_id, reconcile family members first.
-      final pRemote = profileRemoteDataSource;
-      if (pRemote != null) {
-        try {
-          final profileBox = hiveService.profileBox;
-          final hasUnresolvedProfiles = profileBox.values.any((raw) {
-            final sId = raw['server_profile_id'] ?? raw['serverProfileId'];
-            return sId == null;
-          });
-          if (hasUnresolvedProfiles) {
-            final members = await pRemote.fetchFamilyMembers();
-            if (members.isNotEmpty) {
-              for (final m in members) {
-                final rawId = m['id'];
-                final serverId = rawId is int
-                    ? rawId
-                    : int.tryParse(rawId?.toString() ?? '');
-                if (serverId == null) continue;
-                final isPrimary =
-                    m['is_primary'] == true ||
-                    m['is_primary'] == 1 ||
-                    m['is_primary'] == '1' ||
-                    m['is_primary'] == 'true' ||
-                    (ProfileRelationships.normalize(
-                          (m['relationship'] ?? '').toString(),
-                        ) ==
-                        ProfileRelationships.self);
-
-                for (final key in profileBox.keys) {
-                  final raw = profileBox.get(key);
-                  if (raw is Map) {
-                    final map = Map<String, dynamic>.from(raw);
-                    final keyStr = key.toString();
-                    if (isPrimary &&
-                        (keyStr.startsWith('prof_primary_') ||
-                            map['is_primary'] == true ||
-                            map['isPrimary'] == true)) {
-                      if (map['server_profile_id'] != serverId ||
-                          map['serverProfileId'] != serverId) {
-                        map['server_profile_id'] = serverId;
-                        map['serverProfileId'] = serverId;
-                        await profileBox.put(key, map);
-                      }
-                    } else {
-                      final clientUuid =
-                          map['client_uuid'] ?? map['clientUuid'];
-                      final mUuid = m['client_uuid'] ?? m['clientUuid'];
-                      if (clientUuid != null &&
-                          mUuid != null &&
-                          clientUuid.toString().trim() ==
-                              mUuid.toString().trim()) {
-                        if (map['server_profile_id'] != serverId ||
-                            map['serverProfileId'] != serverId) {
-                          map['server_profile_id'] = serverId;
-                          map['serverProfileId'] = serverId;
-                          await profileBox.put(key, map);
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } catch (e) {
-          debugPrint('[SyncService] Pre-flight profile resolution note: $e');
-        }
-      }
-
       final box = hiveService.syncQueueBox;
       final rawItems = box.values.toList();
       final items = rawItems
@@ -459,7 +404,6 @@ class SyncService {
           .map((m) => SyncQueueItem.fromMap(Map<String, dynamic>.from(m)))
           .toList();
 
-      // Sort by dependency priority then insertion time
       items.sort((a, b) {
         final priorityA = _entityPriority(a.entity, a.operation);
         final priorityB = _entityPriority(b.entity, b.operation);
@@ -476,40 +420,25 @@ class SyncService {
             ? SyncQueueItem.fromMap(Map<String, dynamic>.from(latestRaw))
             : item;
 
-        // Dead-letter: permanent validation failure (400/404/422) or unsupported
-        // entity, marked with retryCount == 99. Never auto-retried, not even by
-        // a forced sync.
         if (activeItem.retryCount >= 99) {
           continue;
         }
 
-        // Transient retry budget exhausted: skip until an explicit forced sync
-        // re-attempts it (F2: force must be able to retry genuine transients).
         if (!force &&
             activeItem.status == 'failed' &&
             activeItem.retryCount >= 5) {
           continue;
         }
 
-        // Exponential backoff check for transient & auth errors (bypassed if force == true).
-        // A 'deferred' item (dependency not ready) is intentionally NOT backed off
-        // so it can resolve as soon as its dependency syncs.
         if (!force &&
-            (activeItem.status == 'failed' ||
-                activeItem.status == 'auth_required') &&
+            activeItem.status == 'failed' &&
             activeItem.lastAttemptAt != null) {
           final backoffSec = min(300, (1 << min(activeItem.retryCount, 6)) * 5);
-          if (now.difference(activeItem.lastAttemptAt!).inSeconds <
-              backoffSec) {
+          if (now.difference(activeItem.lastAttemptAt!).inSeconds < backoffSec) {
             continue;
           }
         }
 
-        // P2-F8: claim the item before dispatch. If another processor holds a
-        // fresh claim (it started between our lease acquisition and now, across
-        // isolates where the lease write is not instantly visible), yield it.
-        // A claim older than the lease belongs to a crashed processor and is
-        // reclaimed here, so the queue never deadlocks.
         final claimNow = DateTime.now();
         final ownedByOther =
             activeItem.claimToken != null &&
@@ -526,7 +455,6 @@ class SyncService {
         activeItem.lastAttemptAt = claimNow;
         await box.put(activeItem.id, activeItem.toMap());
 
-        // Confirm the claim stuck (last-writer-wins detection under a race).
         final confirmRaw = box.get(activeItem.id);
         if (confirmRaw is Map) {
           final confirm = SyncQueueItem.fromMap(
@@ -537,27 +465,61 @@ class SyncService {
           }
         }
 
-        final success = await _processItem(activeItem);
+        // Start a lightweight heartbeat timer for long-running operations (e.g. large file uploads)
+        // to extend the claim timestamp and renew the isolate lease, preventing premature preemption.
+        Timer? heartbeatTimer;
+        heartbeatTimer = Timer.periodic(const Duration(seconds: 45), (_) async {
+          try {
+            final hbNow = DateTime.now();
+            if (lockToken != null) {
+              await lock.renew(lockToken);
+            }
+            final cur = box.get(activeItem.id);
+            if (cur is Map && cur['claimToken'] == _processorId) {
+              final updated = Map<String, dynamic>.from(cur);
+              updated['claimedAt'] = hbNow.toIso8601String();
+              await box.put(activeItem.id, updated);
+            }
+          } catch (_) {}
+        });
+
+        final bool success;
+        try {
+          success = await coordinator.processItem(
+            item: activeItem,
+            explicitOwnerUserId: explicitOwnerUserId,
+          );
+        } finally {
+          heartbeatTimer.cancel();
+        }
+
+        final postCheckRaw = box.get(activeItem.id);
+        if (postCheckRaw is Map) {
+          final postCheck = SyncQueueItem.fromMap(
+            Map<String, dynamic>.from(postCheckRaw),
+          );
+          if (postCheck.claimToken != null &&
+              postCheck.claimToken != _processorId) {
+            continue;
+          }
+        }
 
         if (success) {
           syncedCount++;
           await box.delete(activeItem.id);
+        } else if (activeItem.status == 'auth_required') {
+          activeItem.claimToken = null;
+          activeItem.claimedAt = null;
+          await box.put(activeItem.id, activeItem.toMap());
+          // Stop further queue processing immediately when unauthenticated or logged out
+          break;
         } else if (activeItem.status == 'deferred') {
-          // A required dependency (typically an unresolved server profile id) is
-          // not available yet. This is NOT a failure: keep the queue item
-          // intact, do NOT consume the retry budget, and leave it eligible for
-          // the next sync pass once dependency ordering resolves it.
           activeItem.claimToken = null;
           activeItem.claimedAt = null;
           await box.put(activeItem.id, activeItem.toMap());
         } else {
-          // Genuine failure. Dead-letter items (retryCount == 99 for
-          // 400/404/422) are preserved as-is; transient failures accrue toward
-          // the retry cap.
           if (activeItem.retryCount < 5) {
-            if (activeItem.status != 'auth_required') {
-              activeItem.status = 'failed';
-            }
+            activeItem.status = 'failed';
             activeItem.retryCount += 1;
           }
           activeItem.claimToken = null;
@@ -572,7 +534,7 @@ class SyncService {
         } catch (_) {}
       }
     } catch (e) {
-      debugPrint('[SyncService] Sync processing error: $e');
+      debugPrint('[SyncService] Supabase sync processing error: $e');
     } finally {
       _isSyncing = false;
       if (lockToken != null) await lock.release(lockToken);
@@ -587,10 +549,6 @@ class SyncService {
         e == 'family_members' ||
         e == 'family_member') {
       if (op == 'create') {
-        // Dependency chain: profile CREATE (0) -> hospitals (1) -> doctors (2)
-        // -> consultations (3) -> reports (4) -> appointments (5) -> medicines
-        // (6) -> vitals (7). A family member's server profile id must exist
-        // before any of its profile-scoped clinical records can be pushed.
         return 0;
       } else if (op == 'delete') {
         return 9;
@@ -625,189 +583,6 @@ class SyncService {
       default:
         return 10;
     }
-  }
-
-  Future<bool> _processItem(SyncQueueItem item) async {
-    final entity = item.entity.toLowerCase();
-    if (entity == 'consultations' || entity == 'consultation') {
-      return _processConsultationSync(item);
-    }
-    if (entity == 'reports' || entity == 'report') {
-      return _processReportSync(item);
-    }
-    if (entity == 'appointments' || entity == 'appointment') {
-      return _processAppointmentSync(item);
-    }
-    if (entity == 'doctors' || entity == 'doctor') {
-      return _processDoctorSync(item);
-    }
-    if (entity == 'hospitals' || entity == 'hospital') {
-      return _processHospitalSync(item);
-    }
-    if (entity == 'medicines' || entity == 'medicine') {
-      return _processMedicineSync(item);
-    }
-    if (entity == 'measurement' ||
-        entity == 'measurements' ||
-        entity == 'vitals' ||
-        entity == 'vital') {
-      return _processMeasurementSync(item);
-    }
-    if (entity == 'profile' ||
-        entity == 'profiles' ||
-        entity == 'family_members' ||
-        entity == 'family_member') {
-      return _processProfileSync(item);
-    }
-
-    // Explicit failure for unsupported entities (dead-letter; do not delete silently from queue)
-    item.status = 'failed';
-    item.retryCount = 99;
-    item.errorMessage = 'Unsupported entity: ${item.entity}';
-    return false;
-  }
-
-  /// Processes Consultation synchronization with actual API dispatch and Hive ID synchronization.
-  Future<bool> _processConsultationSync(SyncQueueItem item) async {
-    final remote = consultationRemoteDataSource;
-    if (remote == null) {
-      debugPrint(
-        '[SyncService] ConsultationRemoteDataSource not available, completing local sync pass.',
-      );
-      return true;
-    }
-
-    return ConsultationSyncHandler.process(
-      item: item,
-      remoteDataSource: remote,
-      userBox: hiveService.userBox,
-      profileBox: hiveService.profileBox,
-      resolveDeleteServerId: (prefix, payload) =>
-          _resolveDeleteServerId(prefix, payload),
-    );
-  }
-
-  Future<bool> _processDoctorSync(SyncQueueItem item) async {
-    final remote = doctorRemoteDataSource;
-    if (remote == null) {
-      debugPrint('[SyncService] DoctorRemoteDataSource not available.');
-      return true;
-    }
-
-    return DoctorSyncHandler.process(
-      item: item,
-      remoteDataSource: remote,
-      userBox: hiveService.userBox,
-      profileBox: hiveService.profileBox,
-      syncQueueBox: hiveService.syncQueueBox,
-      resolveDeleteServerId: (prefix, payload) =>
-          _resolveDeleteServerId(prefix, payload),
-    );
-  }
-
-  Future<bool> _processHospitalSync(SyncQueueItem item) async {
-    final remote = hospitalRemoteDataSource;
-    if (remote == null) {
-      debugPrint('[SyncService] HospitalRemoteDataSource not available.');
-      return true;
-    }
-
-    return HospitalSyncHandler.process(
-      item: item,
-      remoteDataSource: remote,
-      userBox: hiveService.userBox,
-      profileBox: hiveService.profileBox,
-      syncQueueBox: hiveService.syncQueueBox,
-      resolveDeleteServerId: (prefix, payload) =>
-          _resolveDeleteServerId(prefix, payload),
-    );
-  }
-
-  /// Processes Report synchronization with actual API dispatch and Hive ID synchronization.
-  Future<bool> _processReportSync(SyncQueueItem item) async {
-    final remote = reportRemoteDataSource;
-    if (remote == null) {
-      debugPrint(
-        '[SyncService] ReportRemoteDataSource not available, completing local sync pass.',
-      );
-      return true;
-    }
-
-    return ReportSyncHandler.process(
-      item: item,
-      remoteDataSource: remote,
-      userBox: hiveService.userBox,
-      profileBox: hiveService.profileBox,
-      resolveDeleteServerId: (prefix, payload) =>
-          _resolveDeleteServerId(prefix, payload),
-    );
-  }
-
-  /// Processes Appointment synchronization with actual API dispatch and Hive ID synchronization.
-  Future<bool> _processAppointmentSync(SyncQueueItem item) async {
-    final remote = appointmentRemoteDataSource;
-    if (remote == null) {
-      debugPrint('[SyncService] No AppointmentRemoteDataSource available.');
-      return false;
-    }
-
-    return AppointmentSyncHandler.process(
-      item: item,
-      remoteDataSource: remote,
-      userBox: hiveService.userBox,
-      profileBox: hiveService.profileBox,
-      resolveDeleteServerId: (prefix, payload) =>
-          _resolveDeleteServerId(prefix, payload),
-    );
-  }
-
-  Future<bool> _processMedicineSync(SyncQueueItem item) async {
-    final remote = medicineRemoteDataSource;
-    if (remote == null) {
-      debugPrint('[SyncService] MedicineRemoteDataSource not available.');
-      return true;
-    }
-
-    return MedicineSyncHandler.process(
-      item: item,
-      remoteDataSource: remote,
-      userBox: hiveService.userBox,
-      profileBox: hiveService.profileBox,
-      resolveDeleteServerId: (prefix, payload) =>
-          _resolveDeleteServerId(prefix, payload),
-    );
-  }
-
-  Future<bool> _processMeasurementSync(SyncQueueItem item) async {
-    final remote = vitalsRemoteDataSource;
-    if (remote == null) {
-      debugPrint('[SyncService] VitalsRemoteDataSource not available.');
-      return true;
-    }
-
-    return MeasurementSyncHandler.process(
-      item: item,
-      remoteDataSource: remote,
-      userBox: hiveService.userBox,
-      profileBox: hiveService.profileBox,
-      resolveDeleteServerId: (prefix, payload) =>
-          _resolveDeleteServerId(prefix, payload),
-    );
-  }
-
-  Future<bool> _processProfileSync(SyncQueueItem item) async {
-    final remote = profileRemoteDataSource;
-    if (remote == null) {
-      debugPrint('[SyncService] ProfileRemoteDataSource not available.');
-      return true;
-    }
-
-    return ProfileSyncHandler.process(
-      item: item,
-      remoteDataSource: remote,
-      userRemoteDataSource: userRemoteDataSource,
-      profileBox: hiveService.profileBox,
-    );
   }
 
   void dispose() {

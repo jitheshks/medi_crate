@@ -54,6 +54,104 @@ class HospitalModel {
     'created_at': createdAt?.toIso8601String(),
   };
 
+  /// Normalizes facility types to standard values matching UI options and PostgreSQL constraints.
+  static String normalizeType(String? rawType) {
+    if (rawType == null || rawType.trim().isEmpty) return 'Hospital';
+    final lower = rawType.trim().toLowerCase();
+    switch (lower) {
+      case 'hospital':
+        return 'Hospital';
+      case 'clinic':
+        return 'Clinic';
+      case 'lab':
+      case 'laboratory':
+        return 'Lab';
+      case 'diagnostic':
+      case 'diagnostic center':
+        return 'Diagnostic Center';
+      case 'pharmacy':
+        return 'Pharmacy';
+      case 'specialty center':
+        return 'Specialty Center';
+      case 'other':
+        return 'Other';
+      default:
+        return 'Other';
+    }
+  }
+
+  /// Serializes model to match Supabase PostgREST table schema for `public.hospitals`.
+  Map<String, dynamic> toSupabaseJson({
+    required String ownerUserId,
+    required String profileId,
+    bool includeId = true,
+  }) {
+    final cleanHospId = IdUtils.unprefix(id);
+    final cleanProfileId = IdUtils.unprefix(profileId);
+
+    final map = <String, dynamic>{
+      'user_id': ownerUserId.trim(),
+      'profile_id': cleanProfileId.trim(),
+      'name': name.trim(),
+      'type': normalizeType(type),
+      if (address != null && address!.trim().isNotEmpty)
+        'address': address!.trim(),
+      if (city != null && city!.trim().isNotEmpty) 'city': city!.trim(),
+      if (state != null && state!.trim().isNotEmpty) 'state': state!.trim(),
+      if (country != null && country!.trim().isNotEmpty)
+        'country': country!.trim(),
+      if (phone != null && phone!.trim().isNotEmpty) 'phone': phone!.trim(),
+      if (email != null && email!.trim().isNotEmpty) 'email': email!.trim(),
+      if (website != null && website!.trim().isNotEmpty)
+        'website': website!.trim(),
+      if (notes != null && notes!.trim().isNotEmpty) 'notes': notes!.trim(),
+    };
+
+    if (includeId &&
+        cleanHospId.isNotEmpty &&
+        UuidUtils.isValidUuid(cleanHospId)) {
+      map['id'] = cleanHospId;
+    }
+
+    final cUuid = clientUuid?.trim();
+    if (cUuid != null && cUuid.isNotEmpty && UuidUtils.isValidUuid(cUuid)) {
+      map['client_uuid'] = cUuid;
+    }
+
+    return map;
+  }
+
+  /// Factory constructing a HospitalModel from Supabase PostgREST JSON row.
+  factory HospitalModel.fromSupabaseJson(Map<String, dynamic> json) {
+    final rawId = json['id']?.toString() ?? '';
+    final cUuid =
+        json['client_uuid']?.toString() ?? json['clientUuid']?.toString();
+
+    return HospitalModel(
+      id: rawId,
+      profileId: json['profile_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Unnamed Facility',
+      type: json['type']?.toString() ?? 'Hospital',
+      address: json['address']?.toString(),
+      city: json['city']?.toString(),
+      state: json['state']?.toString(),
+      country: json['country']?.toString(),
+      phone:
+          json['phone']?.toString() ??
+          json['phone_number']?.toString() ??
+          json['emergency_phone']?.toString(),
+      email: json['email']?.toString(),
+      website: json['website']?.toString(),
+      notes: json['notes']?.toString(),
+      clientUuid: cUuid,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())
+          : (json['updated_at'] != null
+              ? DateTime.tryParse(json['updated_at'].toString())
+              : null),
+    );
+  }
+
   /// Serializes model to match the MediCrate REST API contract for POST /hospitals & POST /hospitals/{id} (H2 / H4)
   Map<String, dynamic> toApiJson() {
     final cleanProfileId =

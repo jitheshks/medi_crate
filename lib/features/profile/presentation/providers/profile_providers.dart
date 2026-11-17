@@ -7,32 +7,23 @@ import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/utils/id_utils.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/datasources/local/profile_local_data_source.dart';
-import '../../data/datasources/remote/profile_remote_data_source.dart';
-import '../../data/datasources/remote/user_remote_data_source.dart';
+import '../../data/datasources/remote/supabase_profile_remote_data_source.dart';
 import '../../data/models/profile_model.dart';
 import '../../data/repositories/profile_repository.dart';
-
-final userRemoteDataSourceProvider = Provider<UserRemoteDataSource>((ref) {
-  final client = ref.watch(apiClientProvider);
-  return UserRemoteDataSource(apiClient: client);
-});
 
 final profileLocalDataSourceProvider = Provider<ProfileLocalDataSource>((ref) {
   final hive = ref.watch(hiveServiceProvider);
   return ProfileLocalDataSource(hiveService: hive);
 });
 
-final profileRemoteDataSourceProvider = Provider<ProfileRemoteDataSource>((
-  ref,
-) {
-  final client = ref.watch(apiClientProvider);
-  return ProfileRemoteDataSource(apiClient: client);
+final supabaseProfileRemoteDataSourceProvider =
+    Provider<SupabaseProfileRemoteDataSource>((ref) {
+  return SupabaseProfileRemoteDataSource();
 });
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   final local = ref.watch(profileLocalDataSourceProvider);
-  final remote = ref.watch(profileRemoteDataSourceProvider);
-  final userRemote = ref.watch(userRemoteDataSourceProvider);
+  final remote = ref.watch(supabaseProfileRemoteDataSourceProvider);
   final connectivity = ref.watch(connectivityServiceProvider);
   final sync = ref.watch(syncServiceProvider);
   final hive = ref.watch(hiveServiceProvider);
@@ -40,7 +31,6 @@ final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   return ProfileRepository(
     localDataSource: local,
     remoteDataSource: remote,
-    userRemoteDataSource: userRemote,
     connectivityService: connectivity,
     syncService: sync,
     hiveService: hive,
@@ -111,7 +101,7 @@ class ProfilesListNotifier extends AsyncNotifier<List<ProfileModel>> {
       final user = ref.read(authControllerProvider).user;
       if (user == null) return [];
       final repo = ref.read(profileRepositoryProvider);
-      await repo.pullProfiles(user.id);
+      await repo.pullProfiles(user.id, force: true);
       final profiles = await repo.getProfiles(user.id);
       if (profiles.isEmpty) {
         final defaultProf = await repo.ensureDefaultProfile(user);
@@ -149,7 +139,7 @@ class ProfilesListNotifier extends AsyncNotifier<List<ProfileModel>> {
     final clientUuid = UuidUtils.generateV4();
 
     final newProfile = ProfileModel(
-      profileId: 'prof_${DateTime.now().microsecondsSinceEpoch}',
+      profileId: '', // Supabase assigns UUID
       ownerUserId: ownerId,
       fullName: fullName,
       relationship: relationship,
@@ -161,7 +151,7 @@ class ProfilesListNotifier extends AsyncNotifier<List<ProfileModel>> {
       photo: photo,
       height: height,
       weight: weight,
-      isPrimary: isPrimary,
+      isPrimary: false, // Invariant: family sub-profiles are never primary
       notes: notes,
       allergies: allergies,
       allergiesConfirmedNone: allergiesConfirmedNone,
@@ -172,7 +162,7 @@ class ProfilesListNotifier extends AsyncNotifier<List<ProfileModel>> {
     final created = await repo.createProfile(newProfile);
     await refreshProfiles();
 
-    if (isPrimary || (state.value != null && state.value!.length == 1)) {
+    if (state.value != null && state.value!.length == 1) {
       ref.read(activeProfileProvider.notifier).selectProfile(created);
     }
 
@@ -193,8 +183,18 @@ class ProfilesListNotifier extends AsyncNotifier<List<ProfileModel>> {
   }
 
   Future<ProfileModel> uploadPhoto(String profileId, File photoFile) async {
+    final user = ref.read(authControllerProvider).user;
+    if (user == null) {
+      throw const UnauthorizedException(
+        'Cannot upload avatar without an active authenticated session.',
+      );
+    }
     final repo = ref.read(profileRepositoryProvider);
-    final result = await repo.uploadProfilePhoto(profileId, photoFile);
+    final result = await repo.uploadProfilePhoto(
+      profileId,
+      photoFile,
+      ownerUserId: user.id,
+    );
     await refreshProfiles();
 
     final active = ref.read(activeProfileProvider);
@@ -205,9 +205,61 @@ class ProfilesListNotifier extends AsyncNotifier<List<ProfileModel>> {
     return result;
   }
 
-  Future<void> deleteProfile(String profileId) async {
+  Future<ProfileModel> deletePhoto(String profileId) async {
+    final user = ref.read(authControllerProvider).user;
+    if (user == null) {
+      throw const UnauthorizedException(
+        'Cannot remove avatar without an active authenticated session.',
+      );
+    }
     final repo = ref.read(profileRepositoryProvider);
-    await repo.deleteProfile(profileId);
+    final result = await repo.deleteProfilePhoto(
+      profileId,
+      ownerUserId: user.id,
+    );
+    await refreshProfiles();
+
+    final active = ref.read(activeProfileProvider);
+    if (active?.profileId == profileId) {
+      ref.read(activeProfileProvider.notifier).selectProfile(result);
+    }
+
+    return result;
+  }
+
+  Future<ProfileModel> archiveProfile(String profileId) async {
+    final user = ref.read(authControllerProvider).user;
+    if (user == null) {
+      throw const UnauthorizedException(
+        'Cannot archive profile without an active authenticated session.',
+      );
+    }
+    final repo = ref.read(profileRepositoryProvider);
+    final archived = await repo.archiveProfile(profileId, ownerUserId: user.id);
+    await refreshProfiles();
+    ref.invalidate(archivedProfilesListProvider);
+
+    return archived;
+  }
+
+  Future<ProfileModel> restoreProfile(String profileId) async {
+    final user = ref.read(authControllerProvider).user;
+    if (user == null) {
+      throw const UnauthorizedException(
+        'Cannot restore profile without an active authenticated session.',
+      );
+    }
+    final repo = ref.read(profileRepositoryProvider);
+    final restored = await repo.restoreProfile(profileId, ownerUserId: user.id);
+    await refreshProfiles();
+    ref.invalidate(archivedProfilesListProvider);
+    return restored;
+  }
+
+  Future<void> deleteProfile(String profileId) async {
+    final user = ref.read(authControllerProvider).user;
+    final repo = ref.read(profileRepositoryProvider);
+    await repo.deleteProfile(profileId, ownerUserId: user?.id);
     await refreshProfiles();
 
     final active = ref.read(activeProfileProvider);
@@ -235,6 +287,34 @@ final profilesListProvider =
       ProfilesListNotifier.new,
     );
 
+/// ArchivedProfilesListNotifier manages fetching and refreshing archived family profiles.
+class ArchivedProfilesListNotifier extends AsyncNotifier<List<ProfileModel>> {
+  @override
+  Future<List<ProfileModel>> build() async {
+    final user = ref.watch(authControllerProvider).user;
+    if (user == null) return [];
+
+    final repo = ref.watch(profileRepositoryProvider);
+    return await repo.getArchivedProfiles(user.id);
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncLoading<List<ProfileModel>>();
+    state = await AsyncValue.guard(() async {
+      final user = ref.read(authControllerProvider).user;
+      if (user == null) return [];
+      final repo = ref.read(profileRepositoryProvider);
+      await repo.pullProfiles(user.id, force: true);
+      return await repo.getArchivedProfiles(user.id);
+    });
+  }
+}
+
+final archivedProfilesListProvider =
+    AsyncNotifierProvider<ArchivedProfilesListNotifier, List<ProfileModel>>(
+      ArchivedProfilesListNotifier.new,
+    );
+
 /// ActiveProfileNotifier holds the globally active selected family health profile.
 class ActiveProfileNotifier extends Notifier<ProfileModel?> {
   @override
@@ -248,17 +328,39 @@ class ActiveProfileNotifier extends Notifier<ProfileModel?> {
         if (profiles.isEmpty) return null;
 
         final repo = ref.watch(profileRepositoryProvider);
-        final activeId = repo.localDataSource.getActiveProfileIdSync();
+        final activeId = repo.localDataSource.getActiveProfileIdSync(user.id);
 
-        final activeProfile =
-            (activeId != null && profiles.any((p) => p.profileId == activeId))
-            ? profiles.firstWhere((p) => p.profileId == activeId)
-            : profiles.firstWhere(
-                (p) => p.isPrimary,
-                orElse: () => profiles.first,
-              );
+        final hasValidActive = activeId != null &&
+            profiles.any((p) => p.profileId == activeId && !p.isArchived);
 
-        return activeProfile;
+        if (hasValidActive) {
+          return profiles.firstWhere(
+            (p) => p.profileId == activeId && !p.isArchived,
+          );
+        }
+
+        // Fallback resolution: activeId is missing, invalid, or points to an archived profile
+        final fallback = profiles.firstWhere(
+          (p) => p.isPrimary && !p.isArchived,
+          orElse: () => profiles.firstWhere(
+            (p) => !p.isArchived,
+            orElse: () => profiles.first,
+          ),
+        );
+
+        // Immediately persist the fallback profile ID to Hive to purge stale/archived ID
+        if (activeId != fallback.profileId && !fallback.isArchived) {
+          unawaited(
+            repo.localDataSource
+                .setActiveProfileId(
+                  profileId: fallback.profileId,
+                  ownerUserId: user.id,
+                )
+                .catchError((_) {}),
+          );
+        }
+
+        return fallback;
       },
       loading: () => null,
       error: (_, _) => null,
@@ -266,19 +368,33 @@ class ActiveProfileNotifier extends Notifier<ProfileModel?> {
   }
 
   Future<void> selectProfile(ProfileModel profile) async {
+    if (profile.isArchived) {
+      throw StateError('Cannot set an archived profile as the active profile.');
+    }
     state = profile;
     final repo = ref.read(profileRepositoryProvider);
-    await repo.setActiveProfileId(profile.profileId);
+    await repo.setActiveProfileId(
+      profileId: profile.profileId,
+      ownerUserId: profile.ownerUserId,
+    );
   }
 
   Future<void> switchProfileById(String profileId) async {
     final profiles = ref.read(profilesListProvider).value ?? [];
     if (profiles.isEmpty) return;
     final match = profiles.firstWhere(
-      (p) => p.profileId == profileId,
-      orElse: () => profiles.first,
+      (p) => p.profileId == profileId && !p.isArchived,
+      orElse: () => profiles.firstWhere(
+        (p) => p.isPrimary && !p.isArchived,
+        orElse: () => profiles.firstWhere(
+          (p) => !p.isArchived,
+          orElse: () => profiles.first,
+        ),
+      ),
     );
-    await selectProfile(match);
+    if (!match.isArchived) {
+      await selectProfile(match);
+    }
   }
 }
 

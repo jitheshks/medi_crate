@@ -2,26 +2,22 @@ import 'dart:async';
 import 'dart:io';
 
 import '../../../../core/connectivity/connectivity_service.dart';
-import '../../../../core/storage/attachment_cleanup_helper.dart';
+import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/storage/hive_service.dart';
-import '../../../../core/sync/models/sync_queue_item.dart';
-import '../../../../core/sync/pending_mutation_guard.dart';
 import '../../../../core/sync/sync_service.dart';
-import '../../../../core/utils/id_utils.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../datasources/local/profile_local_data_source.dart';
-import '../datasources/remote/profile_remote_data_source.dart';
-import '../datasources/remote/user_remote_data_source.dart';
+import '../datasources/remote/supabase_profile_remote_data_source.dart';
 import '../models/profile_model.dart';
 
-/// ProfileRepository orchestrates offline-first profile management operations.
+/// ProfileRepository orchestrates offline-first profile management operations
+/// backed by Hive local storage and Supabase remote synchronization.
 class ProfileRepository {
   final ProfileLocalDataSource localDataSource;
-  final ProfileRemoteDataSource remoteDataSource;
+  final SupabaseProfileRemoteDataSource remoteDataSource;
   final ConnectivityService connectivityService;
   final SyncService syncService;
   final HiveService hiveService;
-  final UserRemoteDataSource? userRemoteDataSource;
   final Map<String, Future<void>> _inFlightPulls = {};
 
   ProfileRepository({
@@ -30,20 +26,31 @@ class ProfileRepository {
     required this.connectivityService,
     required this.syncService,
     required this.hiveService,
-    this.userRemoteDataSource,
+    dynamic userRemoteDataSource,
+    dynamic legacyRemoteDataSource,
   });
 
-  /// Fetches all profiles for user immediately from local Hive cache.
-  Future<List<ProfileModel>> getProfiles(String ownerUserId) async {
-    return await localDataSource.getProfilesForUser(ownerUserId);
+  /// Fetches profiles for [ownerUserId] immediately from local Hive cache.
+  /// If [includeArchived] is false (default), only active profiles are returned.
+  Future<List<ProfileModel>> getProfiles(
+    String ownerUserId, {
+    bool includeArchived = false,
+  }) async {
+    return await localDataSource.getProfilesForUser(
+      ownerUserId,
+      includeArchived: includeArchived,
+    );
   }
 
-  /// Performs background pull-sync for profiles belonging to [ownerUserId]
-  /// and merges server records into Hive cache without blocking local reads.
-  Future<void> pullProfiles(String ownerUserId) {
-    final existing = _inFlightPulls[ownerUserId];
-    if (existing != null) {
-      return existing;
+  /// Performs background pull from Supabase for profiles belonging to [ownerUserId]
+  /// and updates Hive cache without blocking local reads.
+  /// If [force] is true, ignores any currently in-flight pull and starts a fresh pull.
+  Future<void> pullProfiles(String ownerUserId, {bool force = false}) {
+    if (!force) {
+      final existing = _inFlightPulls[ownerUserId];
+      if (existing != null) {
+        return existing;
+      }
     }
 
     final future = _executePullProfiles(ownerUserId);
@@ -57,492 +64,457 @@ class ProfileRepository {
   }
 
   Future<void> _executePullProfiles(String ownerUserId) async {
-    if (SyncService.isRemotePushSuspended) return;
     try {
       final isOnline = await connectivityService.checkConnectivity();
       if (!isOnline) return;
 
-      // 1. Refresh Primary Profile from User endpoint (/api/v1/users/me)
-      if (userRemoteDataSource != null) {
-        try {
-          final userProfileData = await userRemoteDataSource!.getProfile();
-          if (userProfileData.isNotEmpty) {
-            final primaryId = 'prof_primary_$ownerUserId';
+      final remoteProfiles = await remoteDataSource.fetchProfiles(
+        ownerUserId: ownerUserId,
+        includeArchived: true,
+      );
 
-            // Guard against overwriting pending local mutations (I2-C2)
-            if (!PendingMutationGuard.hasPendingMutation(
-              syncQueueBox: hiveService.syncQueueBox,
-              profileBox: hiveService.profileBox,
-              entity: 'profile',
-              profileId: primaryId,
-              remoteId: primaryId,
-            )) {
-              final existing = await localDataSource.getProfileById(primaryId);
-              final resolvedServerId =
-                  IdUtils.toServerIntId(
-                    userProfileData['profile_id'] ??
-                        userProfileData['server_profile_id'] ??
-                        userProfileData['primary_profile_id'] ??
-                        (userProfileData['primary_profile'] is Map
-                            ? (userProfileData['primary_profile'] as Map)['id']
-                            : null) ??
-                        (userProfileData['profile'] is Map
-                            ? (userProfileData['profile'] as Map)['id']
-                            : null),
-                  ) ??
-                  existing?.serverProfileId;
-              final primaryProfile = ProfileModel(
-                profileId: primaryId,
-                serverProfileId: resolvedServerId,
-                ownerUserId: ownerUserId,
-                fullName:
-                    (userProfileData['name'] ??
-                            userProfileData['full_name'] ??
-                            existing?.fullName ??
-                            'Primary Profile')
-                        .toString(),
-                relationship: ProfileRelationships.self,
-                gender:
-                    userProfileData['gender']?.toString() ??
-                    existing?.gender ??
-                    'male',
-                dateOfBirth:
-                    userProfileData['dob']?.toString() ??
-                    userProfileData['date_of_birth']?.toString() ??
-                    existing?.dateOfBirth ??
-                    '',
-                bloodGroup:
-                    userProfileData['blood_group']?.toString() ??
-                    existing?.bloodGroup,
-                height:
-                    (userProfileData['height'] as num?)?.toDouble() ??
-                    existing?.height,
-                weight:
-                    (userProfileData['weight'] as num?)?.toDouble() ??
-                    existing?.weight,
-                photo:
-                    userProfileData['photo_url']?.toString() ??
-                    userProfileData['photo']?.toString() ??
-                    existing?.photo,
-                isPrimary: true,
-                notes: existing?.notes,
-                allergies: existing?.allergies ?? const [],
-                allergiesConfirmedNone:
-                    existing?.allergiesConfirmedNone ?? false,
-                chronicConditions: existing?.chronicConditions ?? const [],
-                chronicConditionsConfirmedNone:
-                    existing?.chronicConditionsConfirmedNone ?? false,
+      if (remoteProfiles.isNotEmpty) {
+        final existingProfiles = await localDataSource.getProfilesForUser(
+          ownerUserId,
+          includeArchived: true,
+        );
+        final existingById = {for (final p in existingProfiles) p.profileId: p};
+
+        final mergedProfiles = remoteProfiles.map((remote) {
+          final existing = existingById[remote.profileId];
+          if (existing != null) {
+            final shouldPreserveDob =
+                (remote.dateOfBirth == null || remote.dateOfBirth!.isEmpty) &&
+                (existing.dateOfBirth != null &&
+                    existing.dateOfBirth!.isNotEmpty);
+            final shouldPreserveGender =
+                (remote.gender == null || remote.gender!.isEmpty) &&
+                (existing.gender != null && existing.gender!.isNotEmpty);
+            if (shouldPreserveDob || shouldPreserveGender) {
+              return remote.copyWith(
+                dateOfBirth: shouldPreserveDob
+                    ? existing.dateOfBirth
+                    : remote.dateOfBirth,
+                gender: shouldPreserveGender ? existing.gender : remote.gender,
               );
-              await localDataSource.saveProfile(primaryProfile);
             }
           }
-        } catch (_) {
-          // Preflight / user endpoint error handled gracefully
+          return remote;
+        }).toList();
+
+        // Save remote profiles to Hive
+        await localDataSource.saveProfiles(mergedProfiles);
+
+        // If an authoritative primary profile was retrieved from Supabase,
+        // clean up any legacy provisional primary key in Hive
+        final primary = remoteProfiles.where((p) => p.isPrimary).firstOrNull;
+        if (primary != null && primary.profileId != 'prof_primary_$ownerUserId') {
+          await localDataSource.deleteProfile('prof_primary_$ownerUserId');
         }
-      }
-
-      // 2. Fetch Family Members from Family endpoint (/api/v1/family-members)
-      try {
-        final remoteProfilesData = await remoteDataSource.fetchFamilyMembers();
-        if (remoteProfilesData.isNotEmpty) {
-          for (final raw in remoteProfilesData) {
-            final rawId = raw['id'];
-            final serverId = rawId is int
-                ? rawId
-                : int.tryParse(rawId?.toString() ?? '');
-
-            final isPrimary =
-                raw['is_primary'] == true ||
-                raw['is_primary'] == 1 ||
-                raw['is_primary'] == '1' ||
-                raw['is_primary'] == 'true' ||
-                ProfileRelationships.normalize(
-                      (raw['relationship'] ?? '').toString(),
-                    ) ==
-                    ProfileRelationships.self;
-
-            if (isPrimary) {
-              // --- Primary / Self Profile Reconciliation ---
-              final primaryId = 'prof_primary_$ownerUserId';
-
-              if (PendingMutationGuard.hasPendingMutation(
-                syncQueueBox: hiveService.syncQueueBox,
-                profileBox: hiveService.profileBox,
-                entity: 'profile',
-                profileId: primaryId,
-                remoteId: serverId?.toString() ?? primaryId,
-                clientUuid: raw['client_uuid']?.toString(),
-              )) {
-                continue;
-              }
-
-              final existing = await localDataSource.getProfileById(primaryId);
-              final serverModel = ProfileModel.fromMap(raw);
-
-              final reconciledPrimary = ProfileModel(
-                profileId: primaryId,
-                serverProfileId: serverId ?? existing?.serverProfileId,
-                ownerUserId: ownerUserId,
-                fullName: serverModel.fullName.isNotEmpty
-                    ? serverModel.fullName
-                    : (existing?.fullName ?? 'Primary Profile'),
-                relationship: ProfileRelationships.self,
-                gender: serverModel.gender ?? existing?.gender ?? 'male',
-                dateOfBirth: serverModel.dateOfBirth ?? existing?.dateOfBirth,
-                bloodGroup: serverModel.bloodGroup ?? existing?.bloodGroup,
-                photo: serverModel.photo ?? existing?.photo,
-                height: serverModel.height ?? existing?.height,
-                weight: serverModel.weight ?? existing?.weight,
-                isPrimary: true,
-                notes: serverModel.notes ?? existing?.notes,
-                allergies: serverModel.allergies.isNotEmpty
-                    ? serverModel.allergies
-                    : (existing?.allergies ?? const []),
-                allergiesConfirmedNone:
-                    serverModel.allergiesConfirmedNone ||
-                    (existing?.allergiesConfirmedNone ?? false),
-                chronicConditions: serverModel.chronicConditions.isNotEmpty
-                    ? serverModel.chronicConditions
-                    : (existing?.chronicConditions ?? const []),
-                chronicConditionsConfirmedNone:
-                    serverModel.chronicConditionsConfirmedNone ||
-                    (existing?.chronicConditionsConfirmedNone ?? false),
-              );
-
-              await localDataSource.saveProfile(reconciledPrimary);
-
-              // Clean up any legacy duplicate entry in profileBox
-              if (serverId != null) {
-                final legacyKey = serverId.toString();
-                if (legacyKey != primaryId) {
-                  await localDataSource.deleteProfile(legacyKey);
-                }
-                final legacyProfKey = 'prof_$serverId';
-                if (legacyProfKey != primaryId) {
-                  await localDataSource.deleteProfile(legacyProfKey);
-                }
-              }
-              continue;
-            }
-
-            // --- Secondary Family Profile Reconciliation ---
-            final clientUuid = (raw['client_uuid'] ?? raw['clientUuid'])
-                ?.toString()
-                .trim();
-
-            // Match against existing local profiles
-            ProfileModel? existingLocal;
-            if (clientUuid != null && clientUuid.isNotEmpty) {
-              existingLocal = await localDataSource.getProfileByClientUuid(
-                clientUuid,
-                ownerUserId,
-              );
-            }
-            if (existingLocal == null && serverId != null) {
-              existingLocal = await localDataSource.getProfileByServerId(
-                serverId,
-                ownerUserId,
-              );
-            }
-            if (existingLocal == null && serverId != null) {
-              existingLocal = await localDataSource.getProfileById(
-                serverId.toString(),
-              );
-            }
-
-            if (existingLocal != null) {
-              // Guard against overwriting pending local mutations
-              if (PendingMutationGuard.hasPendingMutation(
-                syncQueueBox: hiveService.syncQueueBox,
-                profileBox: hiveService.profileBox,
-                entity: 'profile',
-                profileId: existingLocal.profileId,
-                remoteId: serverId?.toString() ?? existingLocal.profileId,
-                clientUuid: clientUuid ?? existingLocal.clientUuid,
-              )) {
-                continue;
-              }
-
-              final serverModel = ProfileModel.fromMap(raw);
-              final merged = existingLocal.copyWith(
-                serverProfileId: serverId ?? existingLocal.serverProfileId,
-                fullName: serverModel.fullName.isNotEmpty
-                    ? serverModel.fullName
-                    : existingLocal.fullName,
-                relationship: serverModel.relationship.isNotEmpty
-                    ? serverModel.relationship
-                    : existingLocal.relationship,
-                relationshipOther:
-                    serverModel.relationshipOther ??
-                    existingLocal.relationshipOther,
-                clientUuid: existingLocal.clientUuid ?? clientUuid,
-                gender: serverModel.gender ?? existingLocal.gender,
-                dateOfBirth:
-                    serverModel.dateOfBirth ?? existingLocal.dateOfBirth,
-                bloodGroup: serverModel.bloodGroup ?? existingLocal.bloodGroup,
-                photo: serverModel.photo ?? existingLocal.photo,
-                height: serverModel.height ?? existingLocal.height,
-                weight: serverModel.weight ?? existingLocal.weight,
-                notes: serverModel.notes ?? existingLocal.notes,
-                allergies: serverModel.allergies.isNotEmpty
-                    ? serverModel.allergies
-                    : existingLocal.allergies,
-                allergiesConfirmedNone:
-                    serverModel.allergiesConfirmedNone ||
-                    existingLocal.allergiesConfirmedNone,
-                chronicConditions: serverModel.chronicConditions.isNotEmpty
-                    ? serverModel.chronicConditions
-                    : existingLocal.chronicConditions,
-                chronicConditionsConfirmedNone:
-                    serverModel.chronicConditionsConfirmedNone ||
-                    existingLocal.chronicConditionsConfirmedNone,
-              );
-
-              await localDataSource.saveProfile(merged);
-            } else {
-              // New remote profile not yet seen locally
-              if (PendingMutationGuard.hasPendingMutation(
-                syncQueueBox: hiveService.syncQueueBox,
-                profileBox: hiveService.profileBox,
-                entity: 'profile',
-                profileId: serverId?.toString() ?? '',
-                remoteId: serverId?.toString() ?? '',
-                clientUuid: clientUuid,
-              )) {
-                continue;
-              }
-
-              final localId =
-                  'prof_${serverId ?? DateTime.now().microsecondsSinceEpoch}';
-              final serverModel = ProfileModel.fromMap(raw);
-              final newProfile = serverModel.copyWith(
-                profileId: localId,
-                serverProfileId: serverId,
-                ownerUserId: ownerUserId,
-                clientUuid: clientUuid,
-              );
-
-              await localDataSource.saveProfile(newProfile);
-            }
-          }
-        }
-      } catch (_) {
-        // Family members error handled gracefully
       }
     } catch (_) {
-      // Gracefully catch any unexpected error during pull
+      // Background pull failure handled gracefully - local data remains accessible
     } finally {
       _inFlightPulls.remove(ownerUserId);
     }
   }
 
-  /// Fetches a specific profile by ID.
-  Future<ProfileModel?> getProfileById(String profileId) async {
-    final local = await localDataSource.getProfileById(profileId);
+  /// Fetches a specific profile by ID from Hive first, then Supabase if online.
+  Future<ProfileModel?> getProfileById(
+    String profileId, {
+    required String ownerUserId,
+  }) async {
+    final local = await localDataSource.getProfileById(
+      profileId,
+      ownerUserId: ownerUserId,
+    );
     if (local != null) return local;
 
-    final isOnline = await connectivityService.checkConnectivity();
-    if (isOnline && !SyncService.isRemotePushSuspended) {
-      try {
-        final serverId = IdUtils.toServerIntId(profileId);
-        if (serverId != null) {
-          final remoteData = await remoteDataSource.getFamilyMember(serverId);
-          if (remoteData.isNotEmpty) {
-            final profile = ProfileModel.fromMap(remoteData);
-            await localDataSource.saveProfile(profile);
-            return profile;
+    if (ownerUserId.trim().isNotEmpty) {
+      final isOnline = await connectivityService.checkConnectivity();
+      if (isOnline) {
+        try {
+          final remote = await remoteDataSource.getProfileById(
+            profileId: profileId,
+            ownerUserId: ownerUserId,
+          );
+          if (remote != null) {
+            await localDataSource.saveProfile(remote);
+            return remote;
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
     }
     return null;
   }
 
   /// Creates a new family profile.
+  ///
+  /// Online: creates in Supabase and persists to Hive on success.
+  /// Offline: throws [NetworkException] to prevent un-synchronized clinical mutations.
   Future<ProfileModel> createProfile(ProfileModel profile) async {
     final isOnline = await connectivityService.checkConnectivity();
-
-    final clientUuid =
-        (profile.clientUuid != null && profile.clientUuid!.trim().isNotEmpty)
-        ? profile.clientUuid!.trim()
-        : UuidUtils.generateV4();
-    final localProfileId = profile.profileId.isNotEmpty
-        ? profile.profileId
-        : 'prof_${DateTime.now().microsecondsSinceEpoch}';
-    final profileToSave = profile.copyWith(
-      profileId: localProfileId,
-      clientUuid: clientUuid,
-      clearServerProfileId: true,
-    );
-
-    await localDataSource.saveProfile(profileToSave);
-
-    final queueId = 'sync_prof_${DateTime.now().microsecondsSinceEpoch}';
-    await syncService.addToQueue(
-      SyncQueueItem(
-        id: queueId,
-        entity: 'profile',
-        operation: 'create',
-        payload: profileToSave.toMap(),
-      ),
-    );
-
-    if (isOnline && !SyncService.isRemotePushSuspended) {
-      try {
-        final res = await remoteDataSource.addFamilyMember(
-          profileToSave.toApiJson(),
-        );
-        final rawId = res['id'];
-        final serverId = rawId is int
-            ? rawId
-            : int.tryParse(rawId?.toString() ?? '');
-        if (serverId != null) {
-          final synced = profileToSave.copyWith(serverProfileId: serverId);
-          // Retain stable local canonical profileId
-          await localDataSource.saveProfile(synced);
-
-          // Remove completed mutation from queue
-          await hiveService.syncQueueBox.delete(queueId);
-          return synced;
-        }
-      } catch (_) {
-        return profileToSave;
-      }
+    if (!isOnline) {
+      throw const NetworkException(
+        'Internet connection required to create a family profile. Please check your connection and try again.',
+      );
     }
 
-    return profileToSave;
+    final created = await remoteDataSource.createFamilyProfile(
+      profile: profile,
+      ownerUserId: profile.ownerUserId,
+    );
+
+    await localDataSource.saveProfile(created);
+    return created;
   }
 
   /// Updates an existing profile.
+  ///
+  /// Online: updates in Supabase and persists to Hive on success.
+  /// Offline: throws [NetworkException] to prevent conflicting local state.
   Future<ProfileModel> updateProfile(ProfileModel profile) async {
     final isOnline = await connectivityService.checkConnectivity();
-
-    await localDataSource.saveProfile(profile);
-
-    if (profile.isPrimary) {
-      if (isOnline &&
-          userRemoteDataSource != null &&
-          !SyncService.isRemotePushSuspended) {
-        try {
-          final res = await userRemoteDataSource!.updateProfile({
-            'name': profile.fullName,
-            if (profile.gender != null) 'gender': profile.gender,
-            if (profile.dateOfBirth != null) 'dob': profile.dateOfBirth,
-            if (profile.bloodGroup != null) 'blood_group': profile.bloodGroup,
-            if (profile.height != null) 'height': profile.height,
-            if (profile.weight != null) 'weight': profile.weight,
-          });
-          final synced = profile.copyWith(
-            fullName: res['name']?.toString() ?? profile.fullName,
-            gender: res['gender']?.toString() ?? profile.gender,
-            dateOfBirth: res['dob']?.toString() ?? profile.dateOfBirth,
-            bloodGroup: res['blood_group']?.toString() ?? profile.bloodGroup,
-            height: (res['height'] as num?)?.toDouble() ?? profile.height,
-            weight: (res['weight'] as num?)?.toDouble() ?? profile.weight,
-            photo: res['photo_url']?.toString() ?? profile.photo,
-          );
-          await localDataSource.saveProfile(synced);
-          return synced;
-        } catch (_) {}
-      }
-      await syncService.addToQueue(
-        SyncQueueItem(
-          id: 'sync_prof_${DateTime.now().microsecondsSinceEpoch}',
-          entity: 'profile',
-          operation: 'update',
-          payload: profile.toMap(),
-        ),
+    if (!isOnline) {
+      throw const NetworkException(
+        'Internet connection required to update family profile. Please check your connection and try again.',
       );
-      return profile;
     }
 
-    // Secondary profile:
-    if (profile.serverProfileId == null) {
-      // Find pending create mutation in syncQueueBox and update its payload
-      final syncBox = hiveService.syncQueueBox;
-      bool updatedPendingCreate = false;
-      for (final key in syncBox.keys) {
-        final val = syncBox.get(key);
-        if (val is Map) {
-          final entity = val['entity']?.toString().toLowerCase();
-          final op = val['operation']?.toString().toLowerCase();
-          final payload = val['payload'];
-          if ((entity == 'profile' || entity == 'family_members') &&
-              op == 'create' &&
-              payload is Map) {
-            final pid = payload['profile_id'] ?? payload['id'];
-            final cUuid = payload['client_uuid'] ?? payload['clientUuid'];
-            if (pid == profile.profileId ||
-                (profile.clientUuid != null && cUuid == profile.clientUuid)) {
-              val['payload'] = profile.toMap();
-              await syncBox.put(key, Map<dynamic, dynamic>.from(val));
-              updatedPendingCreate = true;
-              break;
-            }
-          }
-        }
-      }
-      if (!updatedPendingCreate) {
-        await syncService.addToQueue(
-          SyncQueueItem(
-            id: 'sync_prof_${DateTime.now().microsecondsSinceEpoch}',
-            entity: 'profile',
-            operation: 'create',
-            payload: profile.toMap(),
-          ),
-        );
-      }
-      return profile;
-    }
-
-    // Profile has serverProfileId
-    final queueId = 'sync_prof_${DateTime.now().microsecondsSinceEpoch}';
-    await syncService.addToQueue(
-      SyncQueueItem(
-        id: queueId,
-        entity: 'profile',
-        operation: 'update',
-        payload: profile.toMap(),
-      ),
+    final updated = await remoteDataSource.updateProfile(
+      profile: profile,
+      ownerUserId: profile.ownerUserId,
     );
 
-    if (isOnline && !SyncService.isRemotePushSuspended) {
-      try {
-        final res = await remoteDataSource.updateFamilyMember(
-          profile.serverProfileId!,
-          profile.toApiJson(),
+    await localDataSource.saveProfile(updated);
+    return updated;
+  }
+
+  /// Uploads avatar photo for a profile to Supabase Storage.
+  Future<ProfileModel> uploadProfilePhoto(
+    String profileId,
+    File photoFile, {
+    required String ownerUserId,
+  }) async {
+    final existing = await localDataSource.getProfileById(
+      profileId,
+      ownerUserId: ownerUserId,
+    );
+    if (existing != null && existing.isArchived) {
+      throw StateError('Cannot modify avatar for an archived profile.');
+    }
+
+    final isOnline = await connectivityService.checkConnectivity();
+    if (!isOnline) {
+      throw const NetworkException(
+        'Internet connection required to update profile avatar.',
+      );
+    }
+
+    final updated = await remoteDataSource.uploadProfilePhoto(
+      profileId: profileId,
+      ownerUserId: ownerUserId,
+      photoFile: photoFile,
+    );
+
+    await localDataSource.saveProfile(updated);
+
+    // If an authoritative primary profile was updated, clean up any provisional key
+    if (profileId.startsWith('prof_primary_') &&
+        updated.profileId != profileId) {
+      await localDataSource.deleteProfile(profileId);
+      final activeId = await localDataSource.getActiveProfileId(ownerUserId);
+      if (activeId == profileId) {
+        await localDataSource.setActiveProfileId(
+          profileId: updated.profileId,
+          ownerUserId: ownerUserId,
         );
-        final synced = ProfileModel.fromMap(res).copyWith(
-          profileId: profile.profileId,
-          serverProfileId: profile.serverProfileId,
-          clientUuid: profile.clientUuid,
-          ownerUserId: profile.ownerUserId,
-        );
-        await localDataSource.saveProfile(synced);
-        await hiveService.syncQueueBox.delete(queueId);
-        return synced;
-      } catch (_) {
-        return profile;
       }
     }
 
-    return profile;
+    return updated;
   }
 
-  /// F7: Fetches overview summary across all family profiles with offline fallback.
-  Future<List<Map<String, dynamic>>> getFamilyDashboard(
-    String ownerUserId,
-  ) async {
+  /// Removes avatar photo for a profile from Supabase Storage and database.
+  Future<ProfileModel> deleteProfilePhoto(
+    String profileId, {
+    required String ownerUserId,
+  }) async {
+    final existing = await localDataSource.getProfileById(
+      profileId,
+      ownerUserId: ownerUserId,
+    );
+    if (existing != null && existing.isArchived) {
+      throw StateError('Cannot modify avatar for an archived profile.');
+    }
+
     final isOnline = await connectivityService.checkConnectivity();
-    if (isOnline && !SyncService.isRemotePushSuspended) {
+    if (!isOnline) {
+      throw const NetworkException(
+        'Internet connection required to remove profile avatar.',
+      );
+    }
+
+    final updated = await remoteDataSource.deleteProfilePhoto(
+      profileId: profileId,
+      ownerUserId: ownerUserId,
+    );
+
+    await localDataSource.saveProfile(updated);
+    return updated;
+  }
+
+  /// Returns archived profiles belonging to [ownerUserId] from local Hive storage.
+  Future<List<ProfileModel>> getArchivedProfiles(String ownerUserId) async {
+    final all = await localDataSource.getProfilesForUser(
+      ownerUserId,
+      includeArchived: true,
+    );
+    return all.where((p) => p.isArchived).toList();
+  }
+
+  /// Archives a non-primary family profile.
+  ///
+  /// Online: updates Supabase and updates Hive cache on success.
+  /// Offline: throws [NetworkException] to guarantee transactional consistency with remote.
+  Future<ProfileModel> archiveProfile(
+    String profileId, {
+    required String ownerUserId,
+  }) async {
+    final existing = await localDataSource.getProfileById(
+      profileId,
+      ownerUserId: ownerUserId,
+    );
+    if (existing != null && existing.isPrimary) {
+      throw StateError('Primary profile cannot be archived.');
+    }
+
+    final isOnline = await connectivityService.checkConnectivity();
+    if (!isOnline) {
+      throw const NetworkException(
+        'Internet connection required to archive family profile. Please check your connection and try again.',
+      );
+    }
+
+    final archived = await remoteDataSource.archiveProfile(
+      profileId: profileId,
+      ownerUserId: ownerUserId,
+    );
+
+    await localDataSource.saveProfile(archived);
+    return archived;
+  }
+
+  /// Restores an archived non-primary family profile.
+  ///
+  /// Online: updates Supabase and updates Hive cache on success.
+  /// Offline: throws [NetworkException] to guarantee transactional consistency with remote.
+  Future<ProfileModel> restoreProfile(
+    String profileId, {
+    required String ownerUserId,
+  }) async {
+    final existing = await localDataSource.getProfileById(
+      profileId,
+      ownerUserId: ownerUserId,
+    );
+    if (existing != null && existing.isPrimary) {
+      throw StateError('Primary profile cannot be restored.');
+    }
+
+    final isOnline = await connectivityService.checkConnectivity();
+    if (!isOnline) {
+      throw const NetworkException(
+        'Internet connection required to restore family profile. Please check your connection and try again.',
+      );
+    }
+
+    final restored = await remoteDataSource.restoreProfile(
+      profileId: profileId,
+      ownerUserId: ownerUserId,
+    );
+
+    await localDataSource.saveProfile(restored);
+    return restored;
+  }
+
+  /// Deleting primary profile is strictly forbidden by database invariant.
+  /// Permanent family profile deletion is disabled to prevent accidental loss
+  /// of clinical records and medical history. Use [archiveProfile] instead.
+  Future<void> deleteProfile(
+    String profileId, {
+    String? ownerUserId,
+  }) async {
+    if (profileId.startsWith('prof_primary_')) {
+      throw StateError('Primary profile cannot be deleted.');
+    }
+
+    if (hiveService.profileBox.isOpen) {
+      final raw = hiveService.profileBox.get(profileId);
+      if (raw is Map) {
+        final profile = ProfileModel.fromMap(Map<String, dynamic>.from(raw));
+        if (profile.isPrimary) {
+          throw StateError('Primary profile cannot be deleted.');
+        }
+      }
+    }
+
+    throw UnsupportedError(
+      'Permanent profile deletion is disabled to prevent accidental loss of clinical history. Use profile archival to archive inactive profiles.',
+    );
+  }
+
+  /// Primary designation is immutable under Supabase schema invariant.
+  Future<void> setPrimaryProfile(ProfileModel profile) async {
+    throw UnsupportedError(
+      'The account owner Self profile is the permanent primary profile and cannot be changed.',
+    );
+  }
+
+  /// Ensures a default primary profile exists for [user].
+  Future<ProfileModel> ensureDefaultProfile(UserModel user) async {
+    final existing = await localDataSource.getProfilesForUser(user.id);
+    if (existing.isNotEmpty) {
+      var primary = existing.firstWhere(
+        (p) => p.isPrimary,
+        orElse: () => existing.first,
+      );
+      final hasNoDob =
+          primary.dateOfBirth == null || primary.dateOfBirth!.trim().isEmpty;
+      final userHasDob =
+          user.dateOfBirth != null && user.dateOfBirth!.trim().isNotEmpty;
+      final hasNoGender =
+          primary.gender == null || primary.gender!.trim().isEmpty;
+      final userHasGender =
+          user.gender != null && user.gender!.trim().isNotEmpty;
+
+      if ((hasNoDob && userHasDob) || (hasNoGender && userHasGender)) {
+        primary = primary.copyWith(
+          dateOfBirth: (hasNoDob && userHasDob)
+              ? user.dateOfBirth!.trim()
+              : primary.dateOfBirth,
+          gender: (hasNoGender && userHasGender)
+              ? user.gender!.trim()
+              : primary.gender,
+        );
+        await localDataSource.saveProfile(primary);
+        if (await connectivityService.checkConnectivity()) {
+          try {
+            await remoteDataSource.updateProfile(
+              profile: primary,
+              ownerUserId: user.id,
+            );
+          } catch (_) {}
+        }
+      }
+
+      final activeId = await localDataSource.getActiveProfileId(user.id);
+      if (activeId == null) {
+        await localDataSource.setActiveProfileId(
+          profileId: primary.profileId,
+          ownerUserId: user.id,
+        );
+      }
+      return primary;
+    }
+
+    // Try pulling from Supabase in case handle_new_user() trigger created it
+    final isOnline = await connectivityService.checkConnectivity();
+    if (isOnline) {
       try {
-        final remoteSummary = await remoteDataSource.fetchFamilyDashboard();
-        if (remoteSummary.isNotEmpty) {
-          return remoteSummary;
+        final remoteProfiles = await remoteDataSource.fetchProfiles(
+          ownerUserId: user.id,
+        );
+        if (remoteProfiles.isNotEmpty) {
+          var primary = remoteProfiles.firstWhere(
+            (p) => p.isPrimary,
+            orElse: () => remoteProfiles.first,
+          );
+          final hasNoDob = primary.dateOfBirth == null ||
+              primary.dateOfBirth!.trim().isEmpty;
+          final userHasDob =
+              user.dateOfBirth != null && user.dateOfBirth!.trim().isNotEmpty;
+          final hasNoGender =
+              primary.gender == null || primary.gender!.trim().isEmpty;
+          final userHasGender =
+              user.gender != null && user.gender!.trim().isNotEmpty;
+
+          if ((hasNoDob && userHasDob) || (hasNoGender && userHasGender)) {
+            primary = primary.copyWith(
+              dateOfBirth: (hasNoDob && userHasDob)
+                  ? user.dateOfBirth!.trim()
+                  : primary.dateOfBirth,
+              gender: (hasNoGender && userHasGender)
+                  ? user.gender!.trim()
+                  : primary.gender,
+            );
+            try {
+              await remoteDataSource.updateProfile(
+                profile: primary,
+                ownerUserId: user.id,
+              );
+            } catch (_) {}
+          }
+
+          final updatedRemoteProfiles = remoteProfiles
+              .map((p) => p.profileId == primary.profileId ? primary : p)
+              .toList();
+          await localDataSource.saveProfiles(updatedRemoteProfiles);
+          await localDataSource.setActiveProfileId(
+            profileId: primary.profileId,
+            ownerUserId: user.id,
+          );
+          return primary;
         }
       } catch (_) {}
     }
 
+    // Fallback: create local Self profile with user.id as canonical profile ID
+    final defaultProfile = ProfileModel(
+      profileId: user.id,
+      serverProfileId: null,
+      ownerUserId: user.id,
+      fullName: user.name.isNotEmpty ? user.name : 'Primary Profile',
+      relationship: ProfileRelationships.self,
+      gender: user.gender ?? 'Male',
+      dateOfBirth: user.dateOfBirth ?? '',
+      bloodGroup: user.bloodGroup,
+      isPrimary: true,
+      notes: null,
+    );
+
+    await localDataSource.saveProfile(defaultProfile);
+    await localDataSource.setActiveProfileId(
+      profileId: defaultProfile.profileId,
+      ownerUserId: user.id,
+    );
+    return defaultProfile;
+  }
+
+  /// Returns the stored active profile ID from local Hive storage for [ownerUserId].
+  Future<String?> getActiveProfileId(String ownerUserId) async {
+    return await localDataSource.getActiveProfileId(ownerUserId);
+  }
+
+  /// Persists the active profile ID into local Hive storage for [ownerUserId].
+  Future<void> setActiveProfileId({
+    required String profileId,
+    required String ownerUserId,
+  }) async {
+    await localDataSource.setActiveProfileId(
+      profileId: profileId,
+      ownerUserId: ownerUserId,
+    );
+  }
+
+  /// Clears active profile selection and session-specific profile cache upon sign out.
+  Future<void> clearSessionProfileData([String? ownerUserId]) async {
+    await localDataSource.clearActiveProfileId(ownerUserId);
+  }
+
+  /// Summary overview across family profiles with offline fallback.
+  Future<List<Map<String, dynamic>>> getFamilyDashboard(
+    String ownerUserId,
+  ) async {
     final localProfiles = await localDataSource.getProfilesForUser(ownerUserId);
     return localProfiles
         .map(
@@ -559,20 +531,10 @@ class ProfileRepository {
         .toList();
   }
 
-  /// F8: Fetches combined analytics across all family profiles with offline fallback.
+  /// Combined analytics across family profiles with offline fallback.
   Future<List<Map<String, dynamic>>> getFamilyAnalytics(
     String ownerUserId,
   ) async {
-    final isOnline = await connectivityService.checkConnectivity();
-    if (isOnline && !SyncService.isRemotePushSuspended) {
-      try {
-        final remoteAnalytics = await remoteDataSource.fetchFamilyAnalytics();
-        if (remoteAnalytics.isNotEmpty) {
-          return remoteAnalytics;
-        }
-      } catch (_) {}
-    }
-
     final localProfiles = await localDataSource.getProfilesForUser(ownerUserId);
     return localProfiles
         .map(
@@ -585,197 +547,5 @@ class ProfileRepository {
           },
         )
         .toList();
-  }
-
-  /// Deletes a family profile. Primary profile cannot be deleted.
-  Future<void> deleteProfile(String profileId) async {
-    final existing = await localDataSource.getProfileById(profileId);
-    if (existing != null && existing.isPrimary) {
-      throw StateError('Primary profile cannot be deleted.');
-    }
-
-    final isOnline = await connectivityService.checkConnectivity();
-
-    // 1. Delete profile from local storage
-    await localDataSource.deleteProfile(profileId);
-
-    // 2. Delete all associated profile medical records from local Hive boxes
-    await _clearAssociatedProfileRecords(profileId);
-
-    // 3. Clean up local profile photo if present
-    if (existing != null && existing.photo != null) {
-      await AttachmentCleanupHelper.safelyDeleteFile(
-        hiveService: hiveService,
-        filePath: existing.photo,
-        exemptRecordId: profileId,
-      );
-    }
-
-    // 4. Cancel pending offline create/update mutations for this profile
-    final syncBox = hiveService.syncQueueBox;
-    final keysToDelete = <dynamic>[];
-    for (final key in syncBox.keys) {
-      final val = syncBox.get(key);
-      if (val is Map) {
-        final entity = val['entity']?.toString().toLowerCase();
-        final payload = val['payload'];
-        if ((entity == 'profile' || entity == 'family_members') &&
-            payload is Map) {
-          final pid = payload['profile_id'] ?? payload['id'];
-          final cUuid = payload['client_uuid'] ?? payload['clientUuid'];
-          if (pid == profileId ||
-              (existing?.clientUuid != null && cUuid == existing!.clientUuid)) {
-            keysToDelete.add(key);
-          }
-        }
-      }
-    }
-    for (final k in keysToDelete) {
-      await syncBox.delete(k);
-    }
-
-    // 5. Queue delete mutation for sync
-    final queueId = 'sync_prof_del_${DateTime.now().millisecondsSinceEpoch}';
-    await syncService.addToQueue(
-      SyncQueueItem(
-        id: queueId,
-        entity: 'profile',
-        operation: 'delete',
-        payload: {
-          'profile_id': profileId,
-          if (existing?.serverProfileId != null)
-            'server_profile_id': existing!.serverProfileId,
-        },
-      ),
-    );
-
-    if (isOnline && !SyncService.isRemotePushSuspended) {
-      final targetServerId =
-          existing?.serverProfileId?.toString() ??
-          IdUtils.toServerIntId(profileId)?.toString();
-      if (targetServerId != null) {
-        try {
-          await remoteDataSource.deleteFamilyMember(targetServerId);
-          await hiveService.syncQueueBox.delete(queueId);
-        } catch (_) {}
-      }
-    }
-  }
-
-  /// Uploads avatar photo for a profile.
-  Future<ProfileModel> uploadProfilePhoto(
-    String profileId,
-    File photoFile,
-  ) async {
-    final existing = await localDataSource.getProfileById(profileId);
-    final isOnline = await connectivityService.checkConnectivity();
-
-    // Clean up old local photo if it was a persistent profile file
-    if (existing != null &&
-        existing.photo != null &&
-        existing.photo != photoFile.path) {
-      await AttachmentCleanupHelper.safelyDeleteFile(
-        hiveService: hiveService,
-        filePath: existing.photo,
-        exemptRecordId: profileId,
-      );
-    }
-
-    if (isOnline && !SyncService.isRemotePushSuspended) {
-      try {
-        final targetServerId =
-            existing?.serverProfileId?.toString() ?? profileId;
-        final photoUrl = await remoteDataSource.uploadFamilyMemberPhoto(
-          targetServerId,
-          photoFile,
-        );
-        if (photoUrl.isNotEmpty && existing != null) {
-          final updated = existing.copyWith(photo: photoUrl);
-          await localDataSource.saveProfile(updated);
-          return updated;
-        }
-      } catch (_) {}
-    }
-
-    // Offline or fallback: save local file path
-    if (existing != null) {
-      final updated = existing.copyWith(photo: photoFile.path);
-      await localDataSource.saveProfile(updated);
-      return updated;
-    }
-
-    throw StateError('Profile not found for photo upload.');
-  }
-
-  Future<void> setPrimaryProfile(ProfileModel profile) async {
-    final updated = profile.copyWith(isPrimary: true);
-    await updateProfile(updated);
-  }
-
-  Future<ProfileModel> ensureDefaultProfile(UserModel user) async {
-    final existing = await localDataSource.getProfilesForUser(user.id);
-    if (existing.isNotEmpty) {
-      final primary = existing.firstWhere(
-        (p) => p.isPrimary,
-        orElse: () => existing.first,
-      );
-      final activeId = await localDataSource.getActiveProfileId();
-      if (activeId == null) {
-        await localDataSource.setActiveProfileId(primary.profileId);
-      }
-      return primary;
-    }
-
-    final defaultProfile = ProfileModel(
-      profileId: 'prof_primary_${user.id}',
-      serverProfileId: null,
-      ownerUserId: user.id,
-      fullName: user.name.isNotEmpty ? user.name : 'Primary Profile',
-      relationship: ProfileRelationships.self,
-      gender: user.gender ?? 'male',
-      dateOfBirth: user.dateOfBirth ?? '',
-      bloodGroup: user.bloodGroup,
-      isPrimary: true,
-      notes: null,
-    );
-
-    await localDataSource.saveProfile(defaultProfile);
-    await localDataSource.setActiveProfileId(defaultProfile.profileId);
-    return defaultProfile;
-  }
-
-  Future<String?> getActiveProfileId() async {
-    return await localDataSource.getActiveProfileId();
-  }
-
-  Future<void> setActiveProfileId(String profileId) async {
-    await localDataSource.setActiveProfileId(profileId);
-  }
-
-  /// Clears active profile selection and session-specific profile cache upon sign out.
-  Future<void> clearSessionProfileData() async {
-    await localDataSource.clearActiveProfileId();
-  }
-
-  Future<void> _clearAssociatedProfileRecords(String profileId) async {
-    try {
-      // Scrub profile data from local Hive boxes
-      final boxesToClean = [hiveService.userBox, hiveService.settingsBox];
-
-      for (final box in boxesToClean) {
-        final keysToDelete = <dynamic>[];
-        for (final key in box.keys) {
-          final val = box.get(key);
-          if (val is Map && val['profile_id'] == profileId) {
-            keysToDelete.add(key);
-          }
-        }
-        for (final key in keysToDelete) {
-          await box.delete(key);
-        }
-      }
-    } catch (_) {
-      // Handled gracefully if Hive boxes are uninitialized in unit test environments
-    }
   }
 }

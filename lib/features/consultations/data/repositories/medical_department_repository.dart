@@ -1,21 +1,22 @@
 import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/storage/hive_service.dart';
-import '../datasources/remote/medical_department_remote_data_source.dart';
+import '../datasources/remote/supabase_medical_department_remote_data_source.dart';
 import '../models/medical_department_model.dart';
 
 /// MedicalDepartmentRepository manages medical department reference directories
-/// with offline Hive caching and REST API integration (MD1).
+/// with offline Hive caching and Supabase integration.
 class MedicalDepartmentRepository {
   static const String cacheKey = 'medical_departments_reference_cache';
 
   final HiveService hiveService;
-  final MedicalDepartmentRemoteDataSource? remoteDataSource;
+  final SupabaseMedicalDepartmentRemoteDataSource? supabaseRemoteDataSource;
   final ConnectivityService? connectivityService;
 
   MedicalDepartmentRepository({
     required this.hiveService,
-    this.remoteDataSource,
+    this.supabaseRemoteDataSource,
     this.connectivityService,
+    dynamic remoteDataSource,
   });
 
   /// Sorts departments alphabetically, placing 'OTHERS' at the very end.
@@ -56,11 +57,12 @@ class MedicalDepartmentRepository {
       }
     }
 
-    if (connectivityService != null && remoteDataSource != null) {
+    if (connectivityService != null && supabaseRemoteDataSource != null) {
       final isOnline = await connectivityService!.checkConnectivity();
       if (isOnline) {
         try {
-          final remoteList = await remoteDataSource!.fetchMedicalDepartments();
+          final remoteList =
+              await supabaseRemoteDataSource!.fetchMedicalDepartments();
           if (remoteList.isNotEmpty) {
             final sorted = _sortDepartments(remoteList);
             final serialized = sorted.map((d) => d.toJson()).toList();

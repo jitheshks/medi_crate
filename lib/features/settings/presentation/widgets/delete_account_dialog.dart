@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -66,7 +66,7 @@ class _DeleteAccountDialogState extends ConsumerState<DeleteAccountDialog> {
 
     try {
       await ref
-          .read(authRepositoryProvider)
+          .read(authControllerProvider.notifier)
           .deleteAccount(currentPassword: _passwordController.text.trim());
 
       if (mounted) {

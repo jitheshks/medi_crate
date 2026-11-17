@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/utils/id_utils.dart';
 import 'consultation_attachment.dart';
@@ -99,7 +99,7 @@ class ConsultationModel {
     'created_at': createdAt.toIso8601String(),
   };
 
-  /// Clean server metadata JSON representation for Laravel Sanctum REST API.
+  /// Historical server metadata JSON representation (retained for backward compatibility).
   /// Omits device-local file paths.
   Map<String, dynamic> toServerMetadataJson({int? serverProfileId}) {
     final cleanProfileId =
@@ -156,6 +156,142 @@ class ConsultationModel {
   /// Alias for toServerMetadataJson() matching cross-module API serialization convention.
   Map<String, dynamic> toApiJson({int? serverProfileId}) =>
       toServerMetadataJson(serverProfileId: serverProfileId);
+
+  /// Serializes consultation for public.consultations table in Supabase.
+  Map<String, dynamic> toSupabaseJson({bool includeId = true}) {
+    final cleanId = IdUtils.unprefix(id).trim();
+    final cleanProfileId = IdUtils.unprefix(profileId).trim();
+    final cleanDoctorId =
+        doctorId != null ? IdUtils.unprefix(doctorId!).trim() : null;
+    final cleanHospitalId =
+        hospitalId != null ? IdUtils.unprefix(hospitalId!).trim() : null;
+
+    final normFollowUpStatus = followUpStatus?.trim().toLowerCase();
+    final validStatus = normFollowUpStatus != null &&
+            ['pending', 'completed', 'missed', 'overdue', 'cancelled']
+                .contains(normFollowUpStatus)
+        ? normFollowUpStatus
+        : (isFollowUpDone ? 'completed' : 'pending');
+
+    return {
+      if (includeId && UuidUtils.isValidUuid(cleanId)) 'id': cleanId,
+      'profile_id': cleanProfileId,
+      if (cleanDoctorId != null && UuidUtils.isValidUuid(cleanDoctorId))
+        'doctor_id': cleanDoctorId,
+      'doctor_name': doctorName.trim().isNotEmpty
+          ? doctorName.trim()
+          : 'Dr. Attending Clinician',
+      if (doctorSpecialty != null && doctorSpecialty!.trim().isNotEmpty)
+        'doctor_specialty': doctorSpecialty!.trim(),
+      if (cleanHospitalId != null && UuidUtils.isValidUuid(cleanHospitalId))
+        'hospital_id': cleanHospitalId,
+      if (hospitalName != null && hospitalName!.trim().isNotEmpty)
+        'hospital_name': hospitalName!.trim(),
+      if (departmentId != null && int.tryParse(departmentId!) != null)
+        'department_id': int.tryParse(departmentId!),
+      if (department != null && department!.trim().isNotEmpty)
+        'department': department!.trim(),
+      'visit_date': visitDate.toIso8601String().split('T').first,
+      if (visitTime != null && visitTime!.trim().isNotEmpty)
+        'visit_time': visitTime!.trim(),
+      'chief_complaint': chiefComplaint.trim().isNotEmpty
+          ? chiefComplaint.trim()
+          : 'Consultation',
+      'diagnosis':
+          diagnosis.trim().isNotEmpty ? diagnosis.trim() : 'Health Assessment',
+      if (clinicalNotes != null && clinicalNotes!.trim().isNotEmpty)
+        'clinical_notes': clinicalNotes!.trim(),
+      'is_follow_up_required': isFollowUpRequired,
+      if (isFollowUpRequired && followUpDate != null)
+        'follow_up_date': followUpDate!.toIso8601String().split('T').first,
+      if (isFollowUpRequired &&
+          followUpTime != null &&
+          followUpTime!.trim().isNotEmpty)
+        'follow_up_time': followUpTime!.trim(),
+      if (isFollowUpRequired) 'follow_up_reminder': followUpReminder,
+      if (isFollowUpRequired &&
+          followUpNotes != null &&
+          followUpNotes!.trim().isNotEmpty)
+        'follow_up_notes': followUpNotes!.trim(),
+      'is_follow_up_done': isFollowUpDone,
+      'follow_up_status': validStatus,
+      'tags': tags,
+      if (consultationFee != null && consultationFee! >= 0)
+        'consultation_fee': consultationFee,
+      'currency': currency.trim().isNotEmpty ? currency.trim() : 'INR',
+      if (clientUuid != null && UuidUtils.isValidUuid(clientUuid!.trim()))
+        'client_uuid': clientUuid!.trim(),
+    };
+  }
+
+  /// Deserializes a record from public.consultations PostgREST response.
+  factory ConsultationModel.fromSupabaseJson(Map<String, dynamic> json) {
+    final isDone = json['is_follow_up_done'] as bool? ??
+        (json['follow_up_status']?.toString().toLowerCase() == 'completed');
+
+    List<ConsultationAttachment> parsedAttachments = const [];
+    final rawAtts = json['consultation_attachments'] ?? json['attachments'];
+    if (rawAtts is Iterable) {
+      parsedAttachments = rawAtts
+          .whereType<Map>()
+          .map((a) => ConsultationAttachment.fromSupabaseJson(
+                Map<String, dynamic>.from(a),
+              ))
+          .toList();
+    }
+
+    final cUuid = json['client_uuid']?.toString();
+
+    DateTime parsedVisitDate = DateTime.now();
+    if (json['visit_date'] != null) {
+      parsedVisitDate =
+          DateTime.tryParse(json['visit_date'].toString()) ?? DateTime.now();
+    }
+
+    DateTime? parsedFollowUpDate;
+    if (json['follow_up_date'] != null) {
+      parsedFollowUpDate =
+          DateTime.tryParse(json['follow_up_date'].toString());
+    }
+
+    return ConsultationModel(
+      id: json['id']?.toString() ?? '',
+      profileId: json['profile_id']?.toString() ?? '',
+      doctorId: json['doctor_id']?.toString(),
+      doctorName:
+          json['doctor_name']?.toString() ?? 'Dr. Attending Clinician',
+      doctorSpecialty: json['doctor_specialty']?.toString(),
+      hospitalId: json['hospital_id']?.toString(),
+      hospitalName: json['hospital_name']?.toString(),
+      departmentId: json['department_id']?.toString(),
+      department: json['department']?.toString(),
+      visitDate: parsedVisitDate,
+      visitTime: json['visit_time']?.toString(),
+      chiefComplaint: json['chief_complaint']?.toString() ?? 'Consultation',
+      diagnosis: json['diagnosis']?.toString() ?? 'Health Assessment',
+      clinicalNotes: json['clinical_notes']?.toString(),
+      isFollowUpRequired: json['is_follow_up_required'] as bool? ?? false,
+      followUpDate: parsedFollowUpDate,
+      followUpTime: json['follow_up_time']?.toString(),
+      followUpReminder: json['follow_up_reminder'] as bool? ?? false,
+      followUpNotes: json['follow_up_notes']?.toString(),
+      isFollowUpDone: isDone,
+      followUpStatus: json['follow_up_status']?.toString() ??
+          (isDone ? 'completed' : 'pending'),
+      tags: json['tags'] != null
+          ? List<String>.from(
+              (json['tags'] as Iterable).map((e) => e.toString()),
+            )
+          : const [],
+      consultationFee: (json['consultation_fee'] as num?)?.toDouble(),
+      currency: json['currency']?.toString() ?? 'INR',
+      attachments: parsedAttachments,
+      clientUuid: cUuid,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
 
   factory ConsultationModel.fromJson(Map<String, dynamic> json) {
     final isDone =

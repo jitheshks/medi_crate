@@ -1,15 +1,17 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/constants/app_typography.dart';
+import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/extensions/build_context_extensions.dart';
 import '../../../../core/permissions/app_permission_service.dart';
+import '../../../../core/storage/avatar_url_resolver.dart';
 import '../../../../shared/widgets/sheets/app_bottom_sheet.dart';
 import '../providers/profile_providers.dart';
 
@@ -107,19 +109,24 @@ class ProfileAvatarPicker extends ConsumerWidget {
       final savedFile = await File(croppedFile.path).copy(targetPath);
 
       // Attempt remote upload if profileId is a persisted profile
-      if (profileId.isNotEmpty &&
-          !profileId.startsWith('prof_primary_') &&
-          !profileId.startsWith('temp_')) {
+      if (profileId.isNotEmpty && !profileId.startsWith('temp_')) {
         try {
           final updated = await ref
               .read(profilesListProvider.notifier)
               .uploadPhoto(profileId, savedFile);
           if (updated.photo != null && updated.photo!.isNotEmpty) {
             onPhotoChanged(updated.photo);
+            ref.invalidate(avatarUrlResolverProvider);
             return;
           }
-        } catch (_) {
-          // Fallback to local image path
+        } catch (e) {
+          if (context.mounted) {
+            final message = e is AppException
+                ? e.userFriendlyMessage
+                : "Couldn't upload profile photo. Please try again.";
+            context.showSnackBar(message);
+          }
+          return;
         }
       }
 
@@ -142,7 +149,45 @@ class ProfileAvatarPicker extends ConsumerWidget {
     }
   }
 
-  Future<void> _removePhoto() async {
+  Future<void> _removePhoto(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Remove Photo'),
+        content:
+            const Text('Are you sure you want to remove this profile photo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (profileId.isNotEmpty && !profileId.startsWith('temp_')) {
+      try {
+        await ref.read(profilesListProvider.notifier).deletePhoto(profileId);
+      } catch (e) {
+        if (context.mounted) {
+          final message = e is AppException
+              ? e.userFriendlyMessage
+              : "Couldn't remove profile photo. Please try again.";
+          context.showSnackBar(message);
+        }
+        return;
+      }
+    }
+
     if (photoPath != null &&
         !photoPath!.startsWith('http') &&
         File(photoPath!).existsSync()) {
@@ -150,7 +195,13 @@ class ProfileAvatarPicker extends ConsumerWidget {
         await File(photoPath!).delete();
       } catch (_) {}
     }
+
     onPhotoChanged(null);
+    ref.invalidate(avatarUrlResolverProvider);
+
+    if (context.mounted) {
+      context.showSnackBar('Profile photo removed');
+    }
   }
 
   void _showPhotoOptions(BuildContext context, WidgetRef ref) {
@@ -199,7 +250,7 @@ class ProfileAvatarPicker extends ConsumerWidget {
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _removePhoto();
+                  _removePhoto(context, ref);
                 },
               ),
           ],
@@ -210,19 +261,36 @@ class ProfileAvatarPicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hasPhoto = photoPath != null && photoPath!.isNotEmpty;
-    final isNetwork =
-        hasPhoto &&
-        (photoPath!.startsWith('http://') || photoPath!.startsWith('https://'));
-    final file = (!isNetwork && hasPhoto) ? File(photoPath!) : null;
-    final fileExists = file != null && file.existsSync();
+    final photoStr = photoPath?.trim();
+    final hasPhoto = photoStr != null && photoStr.isNotEmpty;
     final colorScheme = Theme.of(context).colorScheme;
 
     ImageProvider? imageProvider;
-    if (isNetwork) {
-      imageProvider = NetworkImage(photoPath!);
-    } else if (fileExists) {
-      imageProvider = FileImage(file);
+    if (hasPhoto) {
+      if (photoStr.startsWith('/') || photoStr.startsWith('file://')) {
+        final cleanPath = photoStr.replaceFirst('file://', '');
+        final file = File(cleanPath);
+        if (file.existsSync()) {
+          imageProvider = FileImage(file);
+        }
+      } else if (photoStr.startsWith('http://') ||
+          photoStr.startsWith('https://')) {
+        imageProvider = NetworkImage(photoStr);
+      } else {
+        final resolvedUrlAsync = ref.watch(avatarSignedUrlProvider(photoStr));
+        final resolvedUrl = resolvedUrlAsync.value;
+        if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+          if (resolvedUrl.startsWith('http://') ||
+              resolvedUrl.startsWith('https://')) {
+            imageProvider = NetworkImage(resolvedUrl);
+          } else {
+            final file = File(resolvedUrl);
+            if (file.existsSync()) {
+              imageProvider = FileImage(file);
+            }
+          }
+        }
+      }
     }
 
     return Column(

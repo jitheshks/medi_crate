@@ -10,28 +10,26 @@ import '../../../profile/presentation/providers/profile_providers.dart';
 import '../../../timeline/presentation/providers/timeline_providers.dart';
 import '../../../../core/notifications/local_notification_service.dart';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
-import '../../data/datasources/remote/medicine_remote_data_source.dart';
+import '../../data/datasources/remote/supabase_medicine_remote_data_source.dart';
 import '../../data/models/medicine_model.dart';
 import '../../data/repositories/medicine_repository.dart';
 
-final medicineRemoteDataSourceProvider = Provider<MedicineRemoteDataSource>((
-  ref,
-) {
-  final apiClient = ref.watch(apiClientProvider);
-  return MedicineRemoteDataSource(apiClient: apiClient);
+final supabaseMedicineRemoteDataSourceProvider =
+    Provider<SupabaseMedicineRemoteDataSource>((ref) {
+  return SupabaseMedicineRemoteDataSource();
 });
 
 final medicineRepositoryProvider = Provider<MedicineRepository>((ref) {
   final hive = ref.watch(hiveServiceProvider);
   final sync = ref.watch(syncServiceProvider);
-  final remote = ref.watch(medicineRemoteDataSourceProvider);
+  final supabaseRemote = ref.watch(supabaseMedicineRemoteDataSourceProvider);
   final connectivity = ref.watch(connectivityServiceProvider);
   return MedicineRepository(
     hiveService: hive,
     syncService: sync,
-    remoteDataSource: remote,
+    supabaseRemoteDataSource: supabaseRemote,
     connectivityService: connectivity,
     onPullMerged: () {
       try {

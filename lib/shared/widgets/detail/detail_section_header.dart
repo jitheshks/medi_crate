@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// DetailSectionHeader renders an uppercase section title with standard typography and letter spacing.
 class DetailSectionHeader extends StatelessWidget {

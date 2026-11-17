@@ -14,6 +14,8 @@ import '../../features/reports/presentation/providers/reports_providers.dart';
 import '../../features/vitals/presentation/providers/measurement_providers.dart';
 import '../utils/id_utils.dart';
 import 'sync_providers.dart';
+import 'sync_rollout_config.dart';
+import 'sync_service.dart';
 
 /// Structured outcome of a manual synchronization operation.
 class ManualSyncResult {
@@ -100,6 +102,33 @@ class ManualSyncController extends AsyncNotifier<ManualSyncResult?> {
     var allRemainingCount = 0;
 
     try {
+      if (!SyncService.isRemoteSyncEnabled &&
+          !SyncService.isControlledForegroundSyncEnabled) {
+        return const ManualSyncResult(
+          message:
+              'Remote synchronization is disabled. Changes remain safely preserved on your device.',
+          isSuccess: true,
+        );
+      }
+
+      if (SyncRolloutConfig.isGlobalRolloutPaused) {
+        return const ManualSyncResult(
+          message:
+              'Synchronization rollout is currently paused. '
+              'Your changes remain safely preserved locally.',
+          isSuccess: false,
+        );
+      }
+
+      if (SyncRolloutConfig.isLocalKillSwitchActive) {
+        return const ManualSyncResult(
+          message:
+              'Synchronization is currently disabled by local emergency controls. '
+              'Your changes remain safely preserved locally.',
+          isSuccess: false,
+        );
+      }
+
       final online = await ref
           .read(connectivityServiceProvider)
           .checkConnectivity();
@@ -114,15 +143,42 @@ class ManualSyncController extends AsyncNotifier<ManualSyncResult?> {
 
       // 1. Pre-flight: Refresh profile mappings from server for current user
       final authUser = ref.read(authControllerProvider).user;
-      if (authUser != null) {
-        try {
-          await ref.read(profileRepositoryProvider).pullProfiles(authUser.id);
-        } catch (_) {}
+      if (authUser == null) {
+        return const ManualSyncResult(
+          message: 'Active authenticated session required to synchronize.',
+          isSuccess: false,
+        );
       }
+
+      if (!SyncService.isRemoteSyncEnabled) {
+        if (!SyncService.isEligibleTester(authUser.id)) {
+          return const ManualSyncResult(
+            message:
+                'Foreground synchronization is currently restricted to authorized internal testers. '
+                'Your changes remain safely preserved locally.',
+            isSuccess: false,
+          );
+        }
+        if (!ref.read(syncServiceProvider).isTesterOptedIn(authUser.id)) {
+          return const ManualSyncResult(
+            message:
+                'Synchronization is available for your account but requires opt-in. '
+                'Please enable synchronization in Data & Sync settings.',
+            isSuccess: false,
+          );
+        }
+      }
+
+      try {
+        await ref.read(profileRepositoryProvider).pullProfiles(authUser.id);
+      } catch (_) {}
 
       // 2. Push pending mutations (force retries genuine transients; permanent
       //    400/404/422 dead-letters stay parked).
-      await ref.read(syncServiceProvider).syncPending(force: true);
+      await ref.read(syncServiceProvider).syncPending(
+            force: true,
+            explicitOwnerUserId: authUser.id,
+          );
 
       // 3. Pull server -> Hive for the active profile only, then refresh the
       //    cache-first aggregate + list providers.
@@ -134,9 +190,12 @@ class ManualSyncController extends AsyncNotifier<ManualSyncResult?> {
               profileId: profileId,
             )
           : null;
+      final isServerProfileReady = serverProfileId != null ||
+          (profileId != null &&
+              UuidUtils.isValidUuid(IdUtils.unprefix(profileId)));
 
       if (profileId != null && profileId.isNotEmpty) {
-        if (serverProfileId != null) {
+        if (isServerProfileReady) {
           final pulls = <Future<void>>[
             ref
                 .read(consultationRepositoryProvider)
@@ -185,7 +244,7 @@ class ManualSyncController extends AsyncNotifier<ManualSyncResult?> {
           rawItem: raw,
           activeProfileId: profileId,
           activeServerProfileId: serverProfileId,
-          activeUserId: authUser?.id,
+          activeUserId: authUser.id,
           isPrimaryProfile: activeProfile?.isPrimary ?? false,
         );
       }).toList();
@@ -194,7 +253,7 @@ class ManualSyncController extends AsyncNotifier<ManualSyncResult?> {
       allRemainingCount = allRemaining.length;
 
       if (activeRemaining.isEmpty) {
-        if (serverProfileId == null && profileId != null) {
+        if (!isServerProfileReady && profileId != null) {
           message =
               'Sync completed. Profile is being initialized with the server.';
         } else if (pullFailureCount > 0) {

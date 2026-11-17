@@ -1,30 +1,47 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_icons.dart';
 import '../../../../core/constants/app_typography.dart';
+import '../../../../core/storage/avatar_url_resolver.dart';
 import '../../../../core/theme/app_semantic_colors.dart';
 import '../../data/models/profile_model.dart';
 
-/// ProfileAvatar renders a styled avatar circle for a profile with relationship tinting.
-class ProfileAvatar extends StatelessWidget {
+/// ProfileAvatar renders a styled avatar circle for a profile with relationship tinting,
+/// supporting local files, external HTTP URLs, and private Supabase Storage object paths.
+class ProfileAvatar extends ConsumerWidget {
   final ProfileModel profile;
   final double radius;
 
   const ProfileAvatar({super.key, required this.profile, this.radius = 20});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final name = profile.fullName.trim();
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
     final color = _getRelationshipColor(profile.relationship, context);
     final textColor = Theme.of(context).colorScheme.onPrimary;
 
-    final hasPhoto = profile.photo != null && profile.photo!.isNotEmpty;
+    final photoStr = profile.photo?.trim();
+    final hasPhoto = photoStr != null && photoStr.isNotEmpty;
 
     if (hasPhoto) {
-      final photoStr = profile.photo!;
+      // 1. Direct local filesystem image
+      if (photoStr.startsWith('/') || photoStr.startsWith('file://')) {
+        final cleanPath = photoStr.replaceFirst('file://', '');
+        final file = File(cleanPath);
+        if (file.existsSync()) {
+          return CircleAvatar(
+            radius: radius,
+            backgroundColor: color,
+            backgroundImage: FileImage(file),
+          );
+        }
+      }
+
+      // 2. Direct HTTP/HTTPS image
       if (photoStr.startsWith('http://') || photoStr.startsWith('https://')) {
         return CircleAvatar(
           radius: radius,
@@ -34,13 +51,29 @@ class ProfileAvatar extends StatelessWidget {
         );
       }
 
-      final file = File(photoStr);
-      if (file.existsSync()) {
-        return CircleAvatar(
-          radius: radius,
-          backgroundColor: color,
-          backgroundImage: FileImage(file),
-        );
+      // 3. Private Supabase Storage object path (resolved to authenticated signed URL)
+      final resolvedUrlAsync = ref.watch(avatarSignedUrlProvider(photoStr));
+      final resolvedUrl = resolvedUrlAsync.value;
+
+      if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+        if (resolvedUrl.startsWith('http://') ||
+            resolvedUrl.startsWith('https://')) {
+          return CircleAvatar(
+            radius: radius,
+            backgroundColor: color,
+            backgroundImage: NetworkImage(resolvedUrl),
+            onBackgroundImageError: (exception, stackTrace) {},
+          );
+        }
+
+        final file = File(resolvedUrl);
+        if (file.existsSync()) {
+          return CircleAvatar(
+            radius: radius,
+            backgroundColor: color,
+            backgroundImage: FileImage(file),
+          );
+        }
       }
     }
 

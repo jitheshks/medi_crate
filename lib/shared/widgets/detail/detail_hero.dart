@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// DetailHero renders the centered hero visual at the top of a record detail screen.
 class DetailHero extends StatelessWidget {

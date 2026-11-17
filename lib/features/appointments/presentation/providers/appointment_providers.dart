@@ -8,26 +8,26 @@ import '../../../insights/presentation/providers/insights_providers.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';
 import '../../../timeline/presentation/providers/timeline_providers.dart';
 import '../../../../core/notifications/local_notification_service.dart';
-import '../../data/datasources/remote/appointment_remote_data_source.dart';
+import '../../data/datasources/remote/supabase_appointment_remote_data_source.dart';
 import '../../data/models/appointment_model.dart';
 import '../../data/repositories/appointment_repository.dart';
 
-final appointmentRemoteDataSourceProvider =
-    Provider<AppointmentRemoteDataSource>((ref) {
-      final apiClient = ref.watch(apiClientProvider);
-      return AppointmentRemoteDataSource(apiClient: apiClient);
-    });
+final supabaseAppointmentRemoteDataSourceProvider =
+    Provider<SupabaseAppointmentRemoteDataSource>((ref) {
+  return SupabaseAppointmentRemoteDataSource();
+});
 
 final appointmentRepositoryProvider = Provider<AppointmentRepository>((ref) {
   final hiveService = ref.watch(hiveServiceProvider);
   final syncService = ref.watch(syncServiceProvider);
-  final remoteDataSource = ref.watch(appointmentRemoteDataSourceProvider);
+  final supabaseRemoteDataSource =
+      ref.watch(supabaseAppointmentRemoteDataSourceProvider);
   final connectivityService = ref.watch(connectivityServiceProvider);
 
   return AppointmentRepository(
     hiveService: hiveService,
     syncService: syncService,
-    remoteDataSource: remoteDataSource,
+    supabaseRemoteDataSource: supabaseRemoteDataSource,
     connectivityService: connectivityService,
     onPullMerged: () {
       try {

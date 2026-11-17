@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../../core/constants/app_icons.dart';
 import '../../../../../core/constants/app_radius.dart';
@@ -29,151 +29,175 @@ class MedicineDateRangePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    final startDateWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'START DATE *',
+          style: AppTypography.caption.copyWith(
+            fontWeight: FontWeight.w700,
+            color: colorScheme.onSurfaceVariant,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: startDate,
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+            );
+            if (picked != null) {
+              onStartDateChanged(picked);
+            }
+          },
+          borderRadius: BorderRadius.circular(AppRadius.input),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppRadius.input),
+              border: Border.all(color: colorScheme.outline),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Text(
+                    formatDate(startDate),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  AppIcons.calendar,
+                  size: 18,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    final endDateWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'END DATE (OPTIONAL)',
+          style: AppTypography.caption.copyWith(
+            fontWeight: FontWeight.w700,
+            color: colorScheme.onSurfaceVariant,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: endDate ?? startDate,
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+            );
+            if (picked != null) {
+              onEndDateChanged(picked);
+            }
+          },
+          borderRadius: BorderRadius.circular(AppRadius.input),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppRadius.input),
+              border: Border.all(
+                color: endDateError != null
+                    ? colorScheme.error
+                    : colorScheme.outline,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Text(
+                    endDate != null
+                        ? formatDate(endDate!)
+                        : 'dd / mm / yyyy',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: endDate != null
+                          ? colorScheme.onSurface
+                          : colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.6,
+                            ),
+                      fontWeight: endDate != null
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                if (endDate != null)
+                  IconButton(
+                    icon: const Icon(Icons.clear, size: 16),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => onEndDateChanged(null),
+                  )
+                else
+                  Icon(
+                    AppIcons.calendar,
+                    size: 18,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            // Start Date
-            Expanded(
-              child: Column(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isTwoColumn = constraints.maxWidth >= 300;
+            if (isTwoColumn) {
+              return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'START DATE *',
-                    style: AppTypography.caption.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colorScheme.onSurfaceVariant,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: startDate,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) {
-                        onStartDateChanged(picked);
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(AppRadius.input),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.input),
-                        border: Border.all(color: colorScheme.outline),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            formatDate(startDate),
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: colorScheme.onSurface,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Icon(
-                            AppIcons.calendar,
-                            size: 18,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  Expanded(child: startDateWidget),
+                  const SizedBox(width: 12),
+                  Expanded(child: endDateWidget),
                 ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            // End Date (optional)
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'END DATE (OPTIONAL)',
-                    style: AppTypography.caption.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colorScheme.onSurfaceVariant,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: endDate ?? startDate,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) {
-                        onEndDateChanged(picked);
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(AppRadius.input),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.input),
-                        border: Border.all(
-                          color: endDateError != null
-                              ? colorScheme.error
-                              : colorScheme.outline,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            endDate != null
-                                ? formatDate(endDate!)
-                                : 'dd / mm / yyyy',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: endDate != null
-                                  ? colorScheme.onSurface
-                                  : colorScheme.onSurfaceVariant.withValues(
-                                      alpha: 0.6,
-                                    ),
-                              fontWeight: endDate != null
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                          if (endDate != null)
-                            IconButton(
-                              icon: const Icon(Icons.clear, size: 16),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => onEndDateChanged(null),
-                            )
-                          else
-                            Icon(
-                              AppIcons.calendar,
-                              size: 18,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                startDateWidget,
+                const SizedBox(height: 12),
+                endDateWidget,
+              ],
+            );
+          },
         ),
         if (endDateError != null) ...[
           const SizedBox(height: 4),

@@ -3,8 +3,16 @@ abstract class AppException implements Exception {
   final String message;
   final String? code;
   final Map<String, List<String>>? errors;
+  final Object? cause;
+  final StackTrace? stackTrace;
 
-  const AppException(this.message, {this.code, this.errors});
+  const AppException(
+    this.message, {
+    this.code,
+    this.errors,
+    this.cause,
+    this.stackTrace,
+  });
 
   bool get isNetworkError =>
       this is NetworkException || this is ApiTimeoutException;
@@ -40,6 +48,8 @@ class NetworkException extends AppException {
     super.message, {
     super.code = 'NETWORK_ERROR',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -49,6 +59,8 @@ class ApiTimeoutException extends AppException {
     super.message, {
     super.code = 'TIMEOUT_ERROR',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -61,6 +73,8 @@ class ServerException extends AppException {
     super.code = 'SERVER_ERROR',
     this.statusCode,
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -70,6 +84,8 @@ class UnauthorizedException extends AppException {
     super.message, {
     super.code = 'UNAUTHORIZED',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -79,6 +95,8 @@ class ForbiddenException extends AppException {
     super.message, {
     super.code = 'FORBIDDEN',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -88,6 +106,8 @@ class BadRequestException extends AppException {
     super.message, {
     super.code = 'BAD_REQUEST',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -97,6 +117,8 @@ class NotFoundException extends AppException {
     super.message, {
     super.code = 'NOT_FOUND',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -106,6 +128,8 @@ class ConflictException extends AppException {
     super.message, {
     super.code = 'CONFLICT',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -118,6 +142,8 @@ class ResourceHasDependenciesException extends ConflictException {
     super.code = 'RESOURCE_HAS_DEPENDENCIES',
     this.dependencyCounts,
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -127,6 +153,8 @@ class ValidationException extends AppException {
     super.message, {
     super.code = 'VALIDATION_ERROR',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -139,6 +167,8 @@ class TooManyRequestsException extends AppException {
     super.code = 'TOO_MANY_REQUESTS',
     this.lockoutMinutes,
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -148,6 +178,8 @@ class FeatureUnavailableException extends AppException {
     super.message, {
     super.code = 'FEATURE_UNAVAILABLE',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -157,6 +189,8 @@ class MalformedResponseException extends AppException {
     super.message, {
     super.code = 'MALFORMED_RESPONSE',
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }
 
@@ -169,5 +203,7 @@ class UnknownApiException extends AppException {
     super.code = 'UNKNOWN_API_ERROR',
     this.statusCode,
     super.errors,
+    super.cause,
+    super.stackTrace,
   });
 }

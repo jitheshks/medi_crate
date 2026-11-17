@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -60,11 +60,15 @@ class HospitalFormFields extends StatelessWidget {
           initialValue: facilityTypes.contains(controller.typeController.text)
               ? controller.typeController.text
               : 'Hospital',
+          isExpanded: true,
           decoration: InputDecoration(
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
           items: facilityTypes.map((t) {
-            return DropdownMenuItem(value: t, child: Text(t));
+            return DropdownMenuItem(
+              value: t,
+              child: Text(t, overflow: TextOverflow.ellipsis),
+            );
           }).toList(),
           onChanged: (val) {
             if (val != null) controller.typeController.text = val;
@@ -88,53 +92,28 @@ class HospitalFormFields extends StatelessWidget {
           },
         ),
         const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isTwoColumn = constraints.maxWidth >= 340;
+            if (isTwoColumn) {
+              return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildFieldLabel(context, 'PHONE'),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: controller.phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      hintText: '+91 98765 43210',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (val) => Validators.validatePhone(val),
-                  ),
+                  Expanded(child: _buildPhoneField(context)),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(child: _buildEmailField(context)),
                 ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildFieldLabel(context, 'EMAIL'),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: controller.emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      hintText: 'contact@apollo.com',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return null;
-                      return Validators.validateEmail(val);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPhoneField(context),
+                const SizedBox(height: AppSpacing.md),
+                _buildEmailField(context),
+              ],
+            );
+          },
         ),
         const SizedBox(height: AppSpacing.md),
         _buildFieldLabel(context, 'NOTES'),
@@ -146,6 +125,51 @@ class HospitalFormFields extends StatelessWidget {
             hintText: 'Working hours, floor details, department notes...',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhoneField(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFieldLabel(context, 'PHONE'),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller.phoneController,
+          keyboardType: TextInputType.phone,
+          decoration: InputDecoration(
+            hintText: '+91 98765 43210',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          validator: (val) => Validators.validatePhone(val),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmailField(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFieldLabel(context, 'EMAIL'),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller.emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            hintText: 'contact@apollo.com',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          validator: (val) {
+            if (val == null || val.trim().isEmpty) return null;
+            return Validators.validateEmail(val);
+          },
         ),
       ],
     );

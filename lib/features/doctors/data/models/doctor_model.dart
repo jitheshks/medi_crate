@@ -48,6 +48,85 @@ class DoctorModel {
     'created_at': createdAt?.toIso8601String(),
   };
 
+  /// Serializes model to match Supabase PostgREST table schema for `public.doctors`.
+  Map<String, dynamic> toSupabaseJson({
+    required String ownerUserId,
+    required String profileId,
+    bool includeId = true,
+  }) {
+    final cleanDocId = IdUtils.unprefix(id);
+    final cleanProfileId = IdUtils.unprefix(profileId);
+
+    final map = <String, dynamic>{
+      'user_id': ownerUserId.trim(),
+      'profile_id': cleanProfileId.trim(),
+      'name': name.trim(),
+      'specialty': specialty.trim(),
+      if (hospitalName != null && hospitalName!.trim().isNotEmpty)
+        'hospital_name': hospitalName!.trim(),
+      if (phone != null && phone!.trim().isNotEmpty) 'phone': phone!.trim(),
+      if (email != null && email!.trim().isNotEmpty) 'email': email!.trim(),
+      if (notes != null && notes!.trim().isNotEmpty) 'notes': notes!.trim(),
+      'is_favorite': isFavorite,
+    };
+
+    if (includeId && cleanDocId.isNotEmpty && UuidUtils.isValidUuid(cleanDocId)) {
+      map['id'] = cleanDocId;
+    }
+
+    final cUuid = clientUuid?.trim();
+    if (cUuid != null && cUuid.isNotEmpty && UuidUtils.isValidUuid(cUuid)) {
+      map['client_uuid'] = cUuid;
+    }
+
+    return map;
+  }
+
+  /// Factory constructing a DoctorModel from Supabase PostgREST JSON row.
+  factory DoctorModel.fromSupabaseJson(Map<String, dynamic> json) {
+    final rawId = json['id']?.toString() ?? '';
+    final cUuid =
+        json['client_uuid']?.toString() ?? json['clientUuid']?.toString();
+
+    List<String> parsedHospitalIds = [];
+    if (json['hospital_ids'] is List) {
+      parsedHospitalIds = (json['hospital_ids'] as List)
+          .map((e) => e.toString())
+          .toList();
+    } else if (json['doctor_hospitals'] is List) {
+      for (final rel in json['doctor_hospitals'] as List) {
+        if (rel is Map && rel['hospital_id'] != null) {
+          parsedHospitalIds.add(rel['hospital_id'].toString());
+        }
+      }
+    }
+
+    final rawFavorite = json['is_favorite'];
+    final bool parsedIsFavorite = rawFavorite == true ||
+        rawFavorite == 1 ||
+        rawFavorite == 'true' ||
+        rawFavorite == '1';
+
+    return DoctorModel(
+      id: rawId,
+      profileId: json['profile_id']?.toString() ?? '',
+      name: json['name'] as String? ?? 'Dr. Unknown',
+      specialty: json['specialty'] as String? ?? 'General Practice',
+      hospitalIds: parsedHospitalIds,
+      hospitalName: json['hospital_name'] as String?,
+      phone: json['phone'] as String?,
+      email: json['email'] as String?,
+      notes: json['notes'] as String?,
+      isFavorite: parsedIsFavorite,
+      clientUuid: cUuid,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())
+          : (json['updated_at'] != null
+              ? DateTime.tryParse(json['updated_at'].toString())
+              : null),
+    );
+  }
+
   /// Serializes model to REST API compliant payload format (D2 / D4).
   Map<String, dynamic> toApiJson({String? resolvedHospitalName}) {
     final cleanProfileId =
@@ -89,6 +168,12 @@ class DoctorModel {
       parsedHospitalIds = (json['hospitalIds'] as List)
           .map((e) => e.toString())
           .toList();
+    } else if (json['doctor_hospitals'] is List) {
+      for (final rel in json['doctor_hospitals'] as List) {
+        if (rel is Map && rel['hospital_id'] != null) {
+          parsedHospitalIds.add(rel['hospital_id'].toString());
+        }
+      }
     }
 
     return DoctorModel(

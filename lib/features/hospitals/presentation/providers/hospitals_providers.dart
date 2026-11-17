@@ -13,7 +13,7 @@ import 'package:medi_crate/features/doctors/data/models/doctor_model.dart';
 import 'package:medi_crate/features/doctors/presentation/providers/doctors_providers.dart';
 import 'package:medi_crate/features/home/presentation/providers/clinical_sync_coordinator.dart';
 import 'package:medi_crate/features/home/presentation/providers/home_providers.dart';
-import 'package:medi_crate/features/hospitals/data/datasources/remote/hospital_remote_data_source.dart';
+import 'package:medi_crate/features/hospitals/data/datasources/remote/supabase_hospital_remote_data_source.dart';
 import 'package:medi_crate/features/hospitals/data/models/hospital_model.dart';
 import 'package:medi_crate/features/hospitals/data/repositories/hospital_repository.dart';
 import 'package:medi_crate/features/insights/presentation/providers/insights_providers.dart';
@@ -21,21 +21,20 @@ import 'package:medi_crate/features/profile/presentation/providers/profile_provi
 import 'package:medi_crate/features/reports/data/models/report_model.dart';
 import 'package:medi_crate/features/reports/presentation/providers/reports_providers.dart';
 
-final hospitalRemoteDataSourceProvider = Provider<HospitalRemoteDataSource>((
-  ref,
-) {
-  final apiClient = ref.watch(apiClientProvider);
-  return HospitalRemoteDataSource(apiClient: apiClient);
+final supabaseHospitalRemoteDataSourceProvider =
+    Provider<SupabaseHospitalRemoteDataSource>((ref) {
+  return SupabaseHospitalRemoteDataSource();
 });
 
 final hospitalRepositoryProvider = Provider<HospitalRepository>((ref) {
   final hiveService = ref.watch(hiveServiceProvider);
-  final remoteDataSource = ref.watch(hospitalRemoteDataSourceProvider);
+  final supabaseRemoteDataSource =
+      ref.watch(supabaseHospitalRemoteDataSourceProvider);
   final connectivityService = ref.watch(connectivityServiceProvider);
   final syncService = ref.watch(syncServiceProvider);
   return HospitalRepository(
     hiveService: hiveService,
-    remoteDataSource: remoteDataSource,
+    supabaseRemoteDataSource: supabaseRemoteDataSource,
     connectivityService: connectivityService,
     syncService: syncService,
     onPullMerged: () {

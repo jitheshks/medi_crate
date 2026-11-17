@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../shared/attachments/models/attachment_item.dart';
 import '../../../../shared/attachments/presentation/reusable_attachment_tile.dart';

@@ -1,18 +1,14 @@
-import 'dart:developer' as developer;
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
-import '../../../../core/api/api_client.dart';
 import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/storage/hive_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/supabase/supabase_config.dart';
+import '../../../../core/sync/supabase_sync_coordinator.dart';
 import '../../../../core/sync/sync_service.dart';
 import '../../../home/presentation/providers/clinical_sync_coordinator.dart';
-import '../../../profile/data/datasources/remote/user_remote_data_source.dart';
 import '../../data/datasources/local/auth_local_data_source.dart';
-import '../../data/datasources/remote/auth_remote_data_source.dart';
 import '../../data/datasources/remote/supabase_auth_remote_data_source.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/services/apple_auth_service.dart';
@@ -39,14 +35,24 @@ final isOnlineProvider = StreamProvider<bool>((ref) {
   return connectivityService.onConnectivityChanged;
 });
 
+final supabaseSyncCoordinatorProvider =
+    Provider<SupabaseSyncCoordinator>((ref) {
+      final hive = ref.watch(hiveServiceProvider);
+      final client = ref.watch(supabaseClientProvider);
+      return SupabaseSyncCoordinator(
+        hiveService: hive,
+        customClient: client,
+      );
+    });
+
 final syncServiceProvider = Provider<SyncService>((ref) {
   final hive = ref.watch(hiveServiceProvider);
   final connectivity = ref.watch(connectivityServiceProvider);
-  final apiClient = ref.watch(apiClientProvider);
+  final supabaseSyncCoordinator = ref.watch(supabaseSyncCoordinatorProvider);
   final service = SyncService(
     hiveService: hive,
     connectivityService: connectivity,
-    apiClient: apiClient,
+    customSupabaseSyncCoordinator: supabaseSyncCoordinator,
     onSyncCompleted: () {
       try {
         ref.read(clinicalCacheRevisionProvider.notifier).bump();
@@ -55,22 +61,6 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   );
   ref.onDispose(() => service.dispose());
   return service;
-});
-
-final Provider<ApiClient> apiClientProvider = Provider<ApiClient>((ref) {
-  final secureStorage = ref.watch(secureStorageProvider);
-  return ApiClient(
-    secureStorage: secureStorage,
-    onSessionExpired: () {
-      // Option D: A legacy Laravel 401 represents legacy backend dormancy,
-      // NOT an application session expiration. Decoupled from AuthNotifier
-      // so Supabase sessions are never terminated by legacy Laravel responses.
-      developer.log(
-        '⚠️ [ApiClient] Legacy Laravel 401 intercepted. Application session preserved.',
-        name: 'MediCrate.Auth',
-      );
-    },
-  );
 });
 
 final Provider<GoogleAuthService> googleAuthServiceProvider =
@@ -87,18 +77,6 @@ final Provider<AuthLocalDataSource> authLocalDataSourceProvider =
     Provider<AuthLocalDataSource>((ref) {
       final hive = ref.watch(hiveServiceProvider);
       return AuthLocalDataSource(hive);
-    });
-
-final Provider<AuthRemoteDataSource> authRemoteDataSourceProvider =
-    Provider<AuthRemoteDataSource>((ref) {
-      final apiClient = ref.watch(apiClientProvider);
-      return AuthRemoteDataSource(apiClient);
-    });
-
-final Provider<UserRemoteDataSource> userRemoteDataSourceProvider =
-    Provider<UserRemoteDataSource>((ref) {
-      final apiClient = ref.watch(apiClientProvider);
-      return UserRemoteDataSource(apiClient: apiClient);
     });
 
 final Provider<sb.SupabaseClient> supabaseClientProvider =
@@ -123,9 +101,7 @@ final Provider<AuthRepository> authRepositoryProvider =
         ),
         secureStorage: ref.watch(secureStorageProvider),
         connectivityService: ref.watch(connectivityServiceProvider),
-        userRemoteDataSource: ref.watch(userRemoteDataSourceProvider),
         supabaseClient: ref.watch(supabaseClientProvider),
-        remoteDataSource: ref.watch(authRemoteDataSourceProvider),
       );
     });
 

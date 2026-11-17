@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_typography.dart';
@@ -38,9 +38,11 @@ class _PrimaryButtonState extends State<PrimaryButton> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minHeight: 50,
+        minWidth: double.infinity,
+      ),
       child: ElevatedButton(
         onPressed: widget.isLoading || widget.onPressed == null
             ? null
@@ -50,6 +52,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
           foregroundColor: colorScheme.onPrimary,
           disabledBackgroundColor: colorScheme.primary.withValues(alpha: 0.5),
           shape: RoundedRectangleBorder(borderRadius: AppRadius.pillBorder),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           elevation: 0,
         ),
         child: widget.isLoading

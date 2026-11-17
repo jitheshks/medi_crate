@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_typography.dart';
@@ -69,7 +69,10 @@ class _EmailChangeSectionState extends ConsumerState<EmailChangeSection> {
     try {
       await ref
           .read(authRepositoryProvider)
-          .confirmChangeEmail(otp: _otpController.text.trim());
+          .confirmChangeEmail(
+            otp: _otpController.text.trim(),
+            newEmail: _emailController.text.trim(),
+          );
 
       if (mounted) {
         setState(() {

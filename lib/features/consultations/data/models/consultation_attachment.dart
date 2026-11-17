@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/utils/id_utils.dart';
+
 /// Represents a file attachment (prescription, photo, lab report, PDF) associated with a consultation.
 @immutable
 class ConsultationAttachment {
@@ -59,6 +61,62 @@ class ConsultationAttachment {
     if (fileType != null) 'file_type': fileType,
     if (fileUrl != null) 'file_url': fileUrl,
   };
+
+  /// Serializes attachment for public.consultation_attachments table in Supabase.
+  Map<String, dynamic> toSupabaseJson({
+    required String consultationId,
+    required String userId,
+    bool includeId = true,
+  }) {
+    final cleanId = IdUtils.unprefix(id).trim();
+    final cleanConsultationId = IdUtils.unprefix(consultationId).trim();
+    final cleanUserId = userId.trim();
+
+    String remotePath = '';
+    if (fileUrl != null &&
+        fileUrl!.isNotEmpty &&
+        !fileUrl!.startsWith('/') &&
+        !fileUrl!.startsWith('file:')) {
+      remotePath = fileUrl!.trim();
+    } else if (filePath != null &&
+        filePath!.isNotEmpty &&
+        !filePath!.startsWith('/') &&
+        !filePath!.startsWith('file:')) {
+      remotePath = filePath!.trim();
+    } else {
+      remotePath = fileUrl?.trim() ?? filePath?.trim() ?? '';
+    }
+
+    return {
+      if (includeId && UuidUtils.isValidUuid(cleanId)) 'id': cleanId,
+      'consultation_id': cleanConsultationId,
+      'user_id': cleanUserId,
+      'name': name.trim(),
+      'file_path': remotePath,
+      if (fileType != null && fileType!.trim().isNotEmpty)
+        'file_type': fileType!.trim(),
+      'size_bytes': (sizeKB > 0 ? sizeKB : 1) * 1024,
+    };
+  }
+
+  /// Deserializes a record from public.consultation_attachments PostgREST response.
+  factory ConsultationAttachment.fromSupabaseJson(Map<String, dynamic> json) {
+    final rawBytes = json['size_bytes'] ?? json['sizeBytes'];
+    int size = 1;
+    if (rawBytes is num) {
+      size = (rawBytes / 1024).round();
+      if (size < 1) size = 1;
+    }
+
+    return ConsultationAttachment(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'attachment',
+      sizeKB: size,
+      filePath: json['file_path']?.toString() ?? json['filePath']?.toString(),
+      fileType: json['file_type']?.toString() ?? json['fileType']?.toString(),
+      fileUrl: json['file_url']?.toString() ?? json['fileUrl']?.toString(),
+    );
+  }
 
   factory ConsultationAttachment.fromJson(Map<String, dynamic> json) {
     final rawSize =

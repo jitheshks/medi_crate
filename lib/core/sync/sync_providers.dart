@@ -6,6 +6,8 @@ import '../../features/auth/presentation/providers/auth_providers.dart';
 import '../../features/profile/presentation/providers/profile_providers.dart';
 import '../utils/id_utils.dart';
 import 'models/sync_queue_item.dart';
+import 'sync_rollout_config.dart';
+import 'sync_service.dart';
 
 export 'manual_sync_controller.dart';
 
@@ -185,3 +187,36 @@ final pendingSyncQueueItemsProvider = StreamProvider<List<SyncQueueItem>>((
 
   return controller.stream;
 });
+
+/// Provider exposing whether foreground sync rollout is paused globally.
+final isRolloutPausedProvider = Provider<bool>((ref) {
+  return SyncRolloutConfig.isGlobalRolloutPaused;
+});
+
+/// Provider exposing whether the current authenticated user is an authorized internal tester.
+final isEligibleTesterProvider = Provider<bool>((ref) {
+  final authUser = ref.watch(authControllerProvider).user;
+  if (authUser == null) return false;
+  return SyncService.isEligibleTester(authUser.id);
+});
+
+/// Provider for the current user's foreground sync opt-in preference.
+final syncOptInProvider =
+    NotifierProvider<SyncOptInNotifier, bool>(SyncOptInNotifier.new);
+
+class SyncOptInNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    final authUser = ref.watch(authControllerProvider).user;
+    if (authUser == null) return false;
+    final syncService = ref.watch(syncServiceProvider);
+    return syncService.isTesterOptedIn(authUser.id);
+  }
+
+  Future<void> toggle(bool value) async {
+    final authUser = ref.read(authControllerProvider).user;
+    if (authUser == null) return;
+    await ref.read(syncServiceProvider).setTesterOptIn(authUser.id, value);
+    state = value;
+  }
+}

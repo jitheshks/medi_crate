@@ -146,6 +146,171 @@ class MeasurementModel {
     );
   }
 
+  /// Deserializes a measurement record from Supabase PostgREST JSON (`public.measurements`).
+  factory MeasurementModel.fromSupabaseJson(Map<String, dynamic> json) {
+    final typeStr = json['type']?.toString() ?? MeasurementTypes.bloodPressure;
+    final titleStr =
+        json['title']?.toString() ?? MeasurementTypes.getDisplayName(typeStr);
+    final unitStr =
+        json['unit']?.toString() ?? MeasurementTypes.getDefaultUnit(typeStr);
+    final gContext =
+        json['glucose_context']?.toString() ??
+        json['glucoseContext']?.toString() ??
+        json['context']?.toString();
+
+    DateTime parsedDate;
+    if (json['recorded_at'] != null) {
+      parsedDate =
+          DateTime.tryParse(json['recorded_at'].toString())?.toLocal() ??
+          DateTime.now();
+    } else if (json['created_at'] != null) {
+      parsedDate =
+          DateTime.tryParse(json['created_at'].toString())?.toLocal() ??
+          DateTime.now();
+    } else {
+      parsedDate = DateTime.now();
+    }
+
+    final isBp =
+        typeStr.toLowerCase() == 'blood_pressure' ||
+        typeStr.toLowerCase() == 'bp';
+
+    double? sys;
+    double? dia;
+    double? numVal;
+
+    if (isBp) {
+      if (json['primary_value'] != null) {
+        sys = double.tryParse(json['primary_value'].toString());
+      } else if (json['systolic'] != null) {
+        sys = double.tryParse(json['systolic'].toString());
+      }
+      if (json['secondary_value'] != null) {
+        dia = double.tryParse(json['secondary_value'].toString());
+      } else if (json['diastolic'] != null) {
+        dia = double.tryParse(json['diastolic'].toString());
+      }
+    } else {
+      if (json['primary_value'] != null) {
+        numVal = double.tryParse(json['primary_value'].toString());
+      } else if (json['numeric_value'] != null) {
+        numVal = double.tryParse(json['numeric_value'].toString());
+      }
+    }
+
+    var valStr = json['value']?.toString() ?? '';
+    if (isBp) {
+      if (sys == null && valStr.contains('/')) {
+        final parts = valStr.split('/');
+        if (parts.length == 2) {
+          sys = double.tryParse(parts[0].trim());
+          dia = double.tryParse(parts[1].trim());
+        }
+      }
+      if ((valStr.isEmpty || !valStr.contains('/')) &&
+          sys != null &&
+          dia != null) {
+        valStr = '${sys.toInt()} / ${dia.toInt()}';
+      }
+    } else if (valStr.isEmpty && numVal != null) {
+      valStr = numVal % 1 == 0 ? numVal.toInt().toString() : numVal.toString();
+    }
+
+    final statusStr =
+        json['status']?.toString().toUpperCase() ??
+        calculateStatus(
+          type: typeStr,
+          systolic: sys,
+          diastolic: dia,
+          numericValue: numVal,
+          glucoseContext: gContext,
+        );
+
+    final cUuid =
+        json['client_uuid']?.toString() ?? json['clientUuid']?.toString();
+
+    return MeasurementModel(
+      id: json['id']?.toString() ?? '',
+      profileId: json['profile_id']?.toString() ?? '',
+      type: typeStr,
+      title: titleStr,
+      value: valStr,
+      systolic: sys,
+      diastolic: dia,
+      numericValue: numVal,
+      unit: unitStr,
+      status: statusStr,
+      source: json['source']?.toString() ?? 'Manual',
+      notes: json['notes']?.toString(),
+      glucoseContext: gContext,
+      clientUuid: cUuid,
+      recordedAt: parsedDate,
+    );
+  }
+
+  /// Serializes the model into a PostgREST payload for `public.measurements`.
+  Map<String, dynamic> toSupabaseJson({bool includeId = true}) {
+    final cleanId = IdUtils.unprefix(id).trim();
+    final cleanProfileId = IdUtils.unprefix(profileId).trim();
+    final isBp =
+        type.toLowerCase() == 'blood_pressure' || type.toLowerCase() == 'bp';
+
+    double primVal;
+    double? secVal;
+    if (isBp) {
+      primVal = systolic ?? (numericValue ?? (double.tryParse(value) ?? 0.0));
+      secVal = diastolic ?? 0.0;
+    } else {
+      primVal = numericValue ?? (double.tryParse(value) ?? 0.0);
+      secVal = null;
+    }
+
+    String? gContext;
+    if (type.toLowerCase() == 'blood_glucose' ||
+        type.toLowerCase() == 'glucose') {
+      final ctx = glucoseContext?.trim().toLowerCase();
+      if (ctx != null && ctx.isNotEmpty) {
+        if ([
+          'fasting',
+          'random',
+          'post_prandial',
+          'postprandial',
+          'before_meal',
+          'after_meal'
+        ].contains(ctx)) {
+          gContext = ctx;
+        } else if (ctx == 'fast') {
+          gContext = 'fasting';
+        } else {
+          gContext = 'fasting';
+        }
+      }
+    }
+
+    final map = <String, dynamic>{
+      if (includeId && cleanId.isNotEmpty && UuidUtils.isValidUuid(cleanId))
+        'id': cleanId,
+      'profile_id': cleanProfileId,
+      'type': type.toLowerCase(),
+      'title': title.isNotEmpty ? title : MeasurementTypes.getDisplayName(type),
+      'value': value,
+      'primary_value': primVal,
+      'secondary_value': ?secVal,
+      'unit': unit.isNotEmpty ? unit : MeasurementTypes.getDefaultUnit(type),
+      'status': status.isNotEmpty ? status : 'normal',
+      'source': source.isNotEmpty ? source : 'Manual',
+      'glucose_context': ?gContext,
+      if (notes != null && notes!.trim().isNotEmpty) 'notes': notes!.trim(),
+      'recorded_at': recordedAt.toUtc().toIso8601String(),
+    };
+
+    if (clientUuid != null && UuidUtils.isValidUuid(clientUuid!.trim())) {
+      map['client_uuid'] = clientUuid!.trim();
+    }
+
+    return map;
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -166,7 +331,7 @@ class MeasurementModel {
     };
   }
 
-  /// Converts model to payload for Laravel REST API (`POST /api/v1/vitals`).
+  /// Converts model to historical REST API payload (`POST /vitals`, retained for backward compatibility).
   Map<String, dynamic> toApiJson({int? serverProfileId}) {
     final cleanProfileId =
         serverProfileId ??

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_icons.dart';
@@ -55,18 +55,17 @@ class DoctorHospitalSelectionSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Flexible(
-              child: Text(
-                'PRACTICES AT / HOSPITALS',
-                style: AppTypography.caption.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-                overflow: TextOverflow.ellipsis,
+            Text(
+              'PRACTICES AT / HOSPITALS',
+              style: AppTypography.caption.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
             TextButton.icon(
               onPressed: onOpenHospitalPicker,
@@ -95,11 +94,14 @@ class DoctorHospitalSelectionSection extends ConsumerWidget {
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    '+ Select Hospital / Clinic',
-                    style: AppTypography.caption.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      '+ Select Hospital / Clinic',
+                      style: AppTypography.caption.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],

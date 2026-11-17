@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -42,6 +42,7 @@ class SignUpScreen extends ConsumerWidget {
     required DateTime? selectedDob,
     String? selectedGender,
   }) {
+    if (ref.read(authControllerProvider).isLoading) return;
     TermsPrivacySheet.show(
       context: context,
       onAccept: () => _registerUser(
@@ -65,6 +66,7 @@ class SignUpScreen extends ConsumerWidget {
     required DateTime? selectedDob,
     String? selectedGender,
   }) async {
+    if (ref.read(authControllerProvider).isLoading) return;
     final formattedDob = selectedDob != null
         ? DateFormat('yyyy-MM-dd').format(selectedDob)
         : '';

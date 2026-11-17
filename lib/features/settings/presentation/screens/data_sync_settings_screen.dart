@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_typography.dart';
@@ -172,6 +172,82 @@ class DataSyncSettingsScreen extends ConsumerWidget {
               ),
             ],
           ),
+          SettingsGroupCard(
+            title: 'Synchronization Rollout',
+            children: [
+              if (ref.watch(isRolloutPausedProvider)) ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.pause_circle_outline,
+                    color: colorScheme.error,
+                  ),
+                  title: Text(
+                    'Rollout Paused',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Foreground synchronization rollout is temporarily paused. '
+                    'All medical records remain securely stored offline in your local vault.',
+                    style: AppTypography.caption.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ] else if (ref.watch(isEligibleTesterProvider)) ...[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: Icon(
+                    Icons.cloud_sync,
+                    color: colorScheme.primary,
+                  ),
+                  title: Text(
+                    'Foreground Synchronization',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Synchronize local clinical data with Supabase during active foreground use.',
+                    style: AppTypography.caption.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  value: ref.watch(syncOptInProvider),
+                  onChanged: (val) {
+                    ref.read(syncOptInProvider.notifier).toggle(val);
+                  },
+                ),
+              ] else ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.lock_outline,
+                    color: colorScheme.outline,
+                  ),
+                  title: Text(
+                    'Limited Internal Beta',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Cloud synchronization is currently restricted to authorized internal testers. '
+                    'All medical records remain securely stored offline in your local vault.',
+                    style: AppTypography.caption.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 20),
           PrimaryButton(
             text: isSyncing ? 'Synchronizing...' : 'Force Sync Now',
             isLoading: isSyncing,

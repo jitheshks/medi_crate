@@ -968,9 +968,9 @@ void main() {
         },
       );
 
-      test('Legacy Laravel sync flags remain suspended during Supabase auth operation', () {
-        expect(BackgroundSyncService.isLaravelSyncSuspended, isTrue);
-        expect(SyncService.isRemotePushSuspended, isTrue);
+      test('Remote sync flags remain disabled during Supabase auth operation', () {
+        expect(BackgroundSyncService.isBackgroundSyncEnabled, isFalse);
+        expect(SyncService.isRemoteSyncEnabled, isFalse);
       });
     },
   );

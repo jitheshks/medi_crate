@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../consultations/data/models/medical_department_model.dart';
 import '../../../../consultations/presentation/widgets/doctor_picker_sheet.dart';

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_typography.dart';
@@ -122,9 +122,13 @@ class _DoctorPickerBrowseViewState
             ),
           )
         else
-          SizedBox(
-            height: 280,
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: (MediaQuery.sizeOf(context).height * 0.42)
+                  .clamp(160.0, 320.0),
+            ),
             child: ListView.separated(
+              shrinkWrap: true,
               itemCount: filteredDoctors.length,
               separatorBuilder: (context, index) =>
                   Divider(height: 1, color: theme.dividerColor),

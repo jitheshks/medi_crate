@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:medi_crate/features/doctor_summary/data/models/doctor_summary_model.dart';
 import 'package:medi_crate/features/doctor_summary/presentation/providers/doctor_summary_providers.dart';

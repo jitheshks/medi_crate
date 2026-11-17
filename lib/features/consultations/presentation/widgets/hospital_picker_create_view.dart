@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_radius.dart';
@@ -213,6 +213,7 @@ class _HospitalPickerCreateViewState
               HospitalFormFields.facilityTypes.contains(_typeController.text)
               ? _typeController.text
               : 'Hospital',
+          isExpanded: true,
           decoration: InputDecoration(
             filled: true,
             fillColor: colorScheme.surface,
@@ -234,7 +235,10 @@ class _HospitalPickerCreateViewState
             ),
           ),
           items: HospitalFormFields.facilityTypes.map((t) {
-            return DropdownMenuItem(value: t, child: Text(t));
+            return DropdownMenuItem(
+              value: t,
+              child: Text(t, overflow: TextOverflow.ellipsis),
+            );
           }).toList(),
           onChanged: (val) {
             if (val != null) {

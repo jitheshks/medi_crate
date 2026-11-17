@@ -1,41 +1,53 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'app/app.dart';
-
-import 'core/api/ssl_security_context.dart';
 import 'core/storage/hive_service.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/sync/background_sync_service.dart';
+import 'core/sync/sync_rollout_config.dart';
+import 'core/utils/app_logger.dart';
 import 'features/auth/data/services/google_auth_service.dart';
 import 'shared/widgets/feedback/app_error_state.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   try {
     try {
       await dotenv.load(fileName: '.env');
+      AppLogger.info('.env configuration loaded successfully', 'Startup');
     } catch (e) {
-      debugPrint('[Startup] .env load skipped or failed: $e');
+      AppLogger.warning(
+        '.env load skipped or failed: $e (falling back to compile-time environment)',
+        'Startup',
+      );
     }
 
-    final googleClientId =
+    final envGoogleClientId =
         (dotenv.isInitialized ? dotenv.maybeGet('GOOGLE_WEB_CLIENT_ID') : null)
             ?.trim();
+    const compileTimeGoogleClientId =
+        String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
+    final googleClientId =
+        (envGoogleClientId != null && envGoogleClientId.isNotEmpty)
+            ? envGoogleClientId
+            : (compileTimeGoogleClientId.isNotEmpty
+                ? compileTimeGoogleClientId
+                : null);
 
     // These initializers have no cross-dependencies; run them concurrently.
     // Hive is fully opened here so startup providers can read boxes immediately.
     // Firebase is not used; Supabase is the sole backend & authentication authority.
     await Future.wait([
-      SslSecurityContext.initialize(),
       HiveService.init(),
       GoogleAuthService.initialize(serverClientId: googleClientId),
     ]);
 
     // Supabase is initialized once after environment variables are loaded.
     await SupabaseConfig.initialize();
+
+    // Ingest internal beta synchronization rollout configuration and fail-closed controls.
+    SyncRolloutConfig.loadFromEnvironment();
   } catch (e, stack) {
     // A required dependency failed; surface it instead of mounting a broken app.
     debugPrint('[Startup] Fatal initialization failure: $e\n$stack');
@@ -68,9 +80,9 @@ class _StartupErrorApp extends StatelessWidget {
       home: Scaffold(
         body: SafeArea(
           child: AppErrorState(
-            title: 'Unable to Start MediVault',
+            title: 'Unable to Start MediCrate',
             message:
-                'MediVault could not finish starting up. Please close the app '
+                'MediCrate could not finish starting up. Please close the app '
                 'completely and open it again.',
             error: error,
           ),

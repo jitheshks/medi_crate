@@ -4,18 +4,19 @@ import 'dart:typed_data';
 
 import 'package:path_provider/path_provider.dart';
 
-import '../../../../core/api/list_pull_support.dart';
 import '../../../../core/connectivity/connectivity_service.dart';
 import '../../../../core/exceptions/app_exception.dart';
 import '../../../../core/storage/attachment_cleanup_helper.dart';
 import '../../../../core/storage/hive_profile_query_helper.dart';
 import '../../../../core/storage/hive_service.dart';
+import '../../../../core/storage/supabase_storage_service.dart';
 import '../../../../core/sync/models/sync_queue_item.dart';
 import '../../../../core/sync/pending_mutation_guard.dart';
+import '../../../../core/sync/pulled_record_comparison.dart';
 import '../../../../core/sync/sync_service.dart';
 import '../../../../core/utils/id_utils.dart';
 import '../../../doctors/data/models/doctor_hospital_relation.dart';
-import '../datasources/remote/consultation_remote_data_source.dart';
+import '../datasources/remote/supabase_consultation_remote_data_source.dart';
 import '../models/consultation_attachment.dart';
 import '../models/consultation_model.dart';
 
@@ -23,30 +24,92 @@ import '../models/consultation_model.dart';
 class ConsultationRepository {
   final HiveService hiveService;
   final SyncService? syncService;
-  final ConsultationRemoteDataSource? remoteDataSource;
+  final SupabaseConsultationRemoteDataSource? supabaseRemoteDataSource;
   final ConnectivityService? connectivityService;
+  final SupabaseStorageService? storageService;
 
-  /// Post-pull freshness signal (Phase 3): invoked once, after the Hive merge,
+  /// Post-pull freshness signal: invoked once, after the Hive merge,
   /// only when a pull actually changed local state.
   final void Function()? onPullMerged;
 
   final Map<String, Future<void>> _inFlightPulls = {};
 
-  /// Whether the last completed pull retrieved the full server dataset
-  /// (`received >= data.total`). Exposed for tests.
-  bool lastPullComplete = true;
-
   ConsultationRepository({
     required this.hiveService,
     this.syncService,
-    this.remoteDataSource,
+    this.supabaseRemoteDataSource,
     this.connectivityService,
+    this.storageService,
     this.onPullMerged,
+    dynamic remoteDataSource,
   });
 
   String _normalizeId(String rawId) {
     if (rawId.startsWith('consultation_')) return rawId;
+    if (rawId.startsWith('con_')) return 'consultation_${rawId.substring(4)}';
     return 'consultation_$rawId';
+  }
+
+  String? _resolveCurrentUserId() {
+    try {
+      final userMap = hiveService.authBox.get('current_user');
+      if (userMap is Map) {
+        final id = (userMap['id'] ?? userMap['user_id'] ?? userMap['userId'])
+            ?.toString();
+        if (id != null && id.trim().isNotEmpty) {
+          return id.trim();
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String? _resolveProfileUuid(String profileId, String ownerUserId) {
+    final clean = IdUtils.unprefix(profileId).trim();
+    try {
+      final box = hiveService.profileBox;
+      final raw =
+          box.get(profileId) ?? box.get(clean) ?? box.get('prof_$clean');
+      Map? direct;
+      if (raw is Map) {
+        direct = raw;
+      } else {
+        for (final val in box.values) {
+          final pId =
+              (val['profile_id'] ?? val['profileId'] ?? val['id'])?.toString();
+          if (pId != null &&
+              (IdUtils.matches(pId, profileId) || IdUtils.matches(pId, clean))) {
+            direct = val;
+            break;
+          }
+        }
+      }
+      if (direct != null) {
+        final profOwner = (direct['owner_user_id'] ??
+                direct['ownerUserId'] ??
+                direct['user_id'])
+            ?.toString();
+        if (profOwner != null &&
+            profOwner.isNotEmpty &&
+            !IdUtils.matches(profOwner, ownerUserId)) {
+          return null;
+        }
+
+        final id =
+            (direct['profile_id'] ?? direct['profileId'] ?? direct['id'])?.toString();
+        if (id != null && UuidUtils.isValidUuid(IdUtils.unprefix(id))) {
+          return IdUtils.unprefix(id).trim();
+        }
+        final cUuid =
+            (direct['client_uuid'] ?? direct['clientUuid'])?.toString();
+        if (cUuid != null && UuidUtils.isValidUuid(cUuid)) {
+          return cUuid.trim();
+        }
+      }
+    } catch (_) {}
+
+    if (UuidUtils.isValidUuid(clean)) return clean;
+    return null;
   }
 
   /// Fetches raw maps for consultations for active [profileId].
@@ -65,7 +128,7 @@ class ConsultationRepository {
     String profileId,
   ) async {
     // 1. Dispatch background pull-sync asynchronously (unawaited)
-    if (remoteDataSource != null) {
+    if (supabaseRemoteDataSource != null) {
       unawaited(pullConsultations(profileId));
     }
 
@@ -79,7 +142,9 @@ class ConsultationRepository {
   /// Performs background pull-sync for consultations belonging to [profileId]
   /// and merges server records into Hive cache.
   Future<void> pullConsultations(String profileId) {
-    if (remoteDataSource == null) return Future.value();
+    if (supabaseRemoteDataSource == null) {
+      return Future.value();
+    }
     final existing = _inFlightPulls[profileId];
     if (existing != null) return existing;
 
@@ -94,111 +159,108 @@ class ConsultationRepository {
   }
 
   Future<void> _executePullConsultations(String profileId) async {
-    if (SyncService.isRemotePushSuspended) return;
-    try {
-      final numericProfileId = IdUtils.resolveServerProfileId(
-        profileBox: hiveService.profileBox,
-        profileId: profileId,
-      );
-      if (numericProfileId == null) return;
+    if (supabaseRemoteDataSource != null) {
+      try {
+        final ownerUserId = _resolveCurrentUserId();
+        if (ownerUserId == null || ownerUserId.isEmpty) return;
 
-      final isOnline = connectivityService != null
-          ? await connectivityService!.checkConnectivity()
-          : true;
+        final profileUuid = _resolveProfileUuid(profileId, ownerUserId);
+        if (profileUuid == null || profileUuid.isEmpty) return;
 
-      if (!isOnline) return;
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (!isOnline) return;
 
-      final remoteList = await fetchCompleteList(
-        (limit, onTotal) => remoteDataSource!.fetchConsultations(
-          profileId: numericProfileId,
-          limit: limit,
-          onTotal: onTotal,
-        ),
-        onComplete: (c) => lastPullComplete = c,
-      );
-      if (remoteList.isNotEmpty) {
-        final box = hiveService.userBox;
-        var pulledChanged = false;
-        for (final map in remoteList) {
-          final model = ConsultationModel.fromJson(map);
-          final key = _normalizeId(model.id);
+        final remoteList = await supabaseRemoteDataSource!.fetchConsultations(
+          ownerUserId: ownerUserId,
+          profileId: profileUuid,
+        );
 
-          // Guard against overwriting pending local mutations (I2-C2)
-          if (PendingMutationGuard.hasPendingMutation(
-            syncQueueBox: hiveService.syncQueueBox,
-            profileBox: hiveService.profileBox,
-            entity: 'consultation',
-            profileId: profileId,
-            remoteId: key,
-            clientUuid: model.clientUuid,
-          )) {
-            continue;
-          }
+        if (remoteList.isNotEmpty) {
+          final box = hiveService.userBox;
+          var pulledChanged = false;
+          for (final model in remoteList) {
+            final key = _normalizeId(model.id);
 
-          // Merge: preserve local clientUuid and local attachment filePaths if existing
-          final existingRaw = box.get(key) ?? box.get(model.id);
-          String? existingUuid;
-          List<ConsultationAttachment>? mergedAttachments;
-          if (existingRaw is Map) {
-            existingUuid =
-                existingRaw['client_uuid']?.toString() ??
-                existingRaw['clientUuid']?.toString();
+            // Guard against overwriting pending local mutations (I2-C2)
+            if (PendingMutationGuard.hasPendingMutation(
+              syncQueueBox: hiveService.syncQueueBox,
+              profileBox: hiveService.profileBox,
+              entity: 'consultation',
+              profileId: profileId,
+              remoteId: key,
+              clientUuid: model.clientUuid,
+            )) {
+              continue;
+            }
 
-            if (existingRaw['attachments'] is List) {
-              final localAtts = (existingRaw['attachments'] as List)
-                  .whereType<Map>()
-                  .map(
-                    (m) => ConsultationAttachment.fromJson(
-                      Map<String, dynamic>.from(m),
-                    ),
-                  )
-                  .toList();
-              if (model.attachments.isEmpty) {
-                mergedAttachments = localAtts;
-              } else {
-                final attList = <ConsultationAttachment>[];
-                for (final rAtt in model.attachments) {
-                  final localMatch = localAtts
-                      .where(
-                        (l) =>
-                            (l.id.isNotEmpty && l.id == rAtt.id) ||
-                            (l.name.isNotEmpty &&
-                                l.name == rAtt.name &&
-                                l.filePath != null),
-                      )
-                      .firstOrNull;
-                  if (localMatch?.filePath != null &&
-                      localMatch!.filePath!.isNotEmpty) {
-                    attList.add(rAtt.copyWith(filePath: localMatch.filePath));
-                  } else {
-                    attList.add(rAtt);
+            // Merge: preserve local clientUuid and local attachment filePaths if existing
+            final existingRaw = box.get(key) ?? box.get(model.id);
+            String? existingUuid;
+            List<ConsultationAttachment>? mergedAttachments;
+            if (existingRaw is Map) {
+              existingUuid =
+                  existingRaw['client_uuid']?.toString() ??
+                  existingRaw['clientUuid']?.toString();
+
+              if (existingRaw['attachments'] is List) {
+                final localAtts = (existingRaw['attachments'] as List)
+                    .whereType<Map>()
+                    .map(
+                      (m) => ConsultationAttachment.fromJson(
+                        Map<String, dynamic>.from(m),
+                      ),
+                    )
+                    .toList();
+                if (model.attachments.isEmpty) {
+                  mergedAttachments = localAtts;
+                } else {
+                  final attList = <ConsultationAttachment>[];
+                  for (final rAtt in model.attachments) {
+                    final localMatch = localAtts
+                        .where(
+                          (l) =>
+                              (l.id.isNotEmpty && l.id == rAtt.id) ||
+                              (l.name.isNotEmpty &&
+                                  l.name == rAtt.name &&
+                                  l.filePath != null),
+                        )
+                        .firstOrNull;
+                    if (localMatch?.filePath != null &&
+                        localMatch!.filePath!.isNotEmpty) {
+                      attList.add(rAtt.copyWith(filePath: localMatch.filePath));
+                    } else {
+                      attList.add(rAtt);
+                    }
                   }
+                  mergedAttachments = attList.isNotEmpty ? attList : localAtts;
                 }
-                mergedAttachments = attList.isNotEmpty ? attList : localAtts;
               }
             }
+
+            final merged = model.copyWith(
+              profileId: profileId,
+              clientUuid: existingUuid ?? model.clientUuid,
+              attachments: mergedAttachments ?? model.attachments,
+            );
+            final encoded = merged.toJson();
+            if (pulledRecordChanged(box.get(key), encoded)) pulledChanged = true;
+            await box.put(key, encoded);
           }
 
-          final merged = model.copyWith(
-            profileId: profileId,
-            clientUuid: existingUuid ?? model.clientUuid,
-            attachments: mergedAttachments ?? model.attachments,
-          );
-          final encoded = merged.toJson();
-          if (pulledRecordChanged(box.get(key), encoded)) pulledChanged = true;
-          await box.put(key, encoded);
+          if (pulledChanged) {
+            try {
+              onPullMerged?.call();
+            } catch (_) {}
+          }
         }
-
-        if (pulledChanged) {
-          try {
-            onPullMerged?.call();
-          } catch (_) {}
-        }
+      } catch (_) {
+        // Fallback to local cache on network or parsing failure - do NOT call legacy remoteDataSource
+      } finally {
+        _inFlightPulls.remove(profileId);
       }
-    } catch (_) {
-      // Fallback to local cache on network or parsing failure
-    } finally {
-      _inFlightPulls.remove(profileId);
+      return;
     }
   }
 
@@ -222,32 +284,40 @@ class ConsultationRepository {
       }
     }
 
-    if (connectivityService != null &&
-        remoteDataSource != null &&
-        !SyncService.isRemotePushSuspended) {
-      final isOnline = await connectivityService!.checkConnectivity();
-      if (isOnline) {
-        try {
-          final cleanId = IdUtils.unprefix(consultationId);
-          final remoteMap = await remoteDataSource!.getConsultation(cleanId);
-          if (remoteMap.isNotEmpty) {
-            final model = ConsultationModel.fromJson(remoteMap);
-            final key = _normalizeId(model.id);
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId();
+      final profileUuid = ownerUserId != null
+          ? _resolveProfileUuid(profileId, ownerUserId)
+          : null;
 
-            // Guard against overwriting pending local mutations (I2-C2)
-            if (!PendingMutationGuard.hasPendingMutation(
-              syncQueueBox: hiveService.syncQueueBox,
-              profileBox: hiveService.profileBox,
-              entity: 'consultation',
-              profileId: profileId,
-              remoteId: key,
-              clientUuid: model.clientUuid,
-            )) {
-              await box.put(key, model.toJson());
-              return model;
+      if (ownerUserId != null && profileUuid != null) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (isOnline) {
+          try {
+            final remoteModel =
+                await supabaseRemoteDataSource!.getConsultationById(
+              consultationId: cleanTarget,
+              ownerUserId: ownerUserId,
+              profileId: profileUuid,
+            );
+            if (remoteModel != null) {
+              final remoteKey = _normalizeId(remoteModel.id);
+              if (!PendingMutationGuard.hasPendingMutation(
+                syncQueueBox: hiveService.syncQueueBox,
+                profileBox: hiveService.profileBox,
+                entity: 'consultation',
+                profileId: profileId,
+                remoteId: remoteKey,
+                clientUuid: remoteModel.clientUuid,
+              )) {
+                await box.put(remoteKey, remoteModel.toJson());
+                return remoteModel;
+              }
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
       }
     }
 
@@ -325,6 +395,9 @@ class ConsultationRepository {
     }
 
     await box.put(id, payload);
+    if (rawId.isNotEmpty && rawId != id) {
+      await box.delete(rawId);
+    }
 
     await syncService?.addToQueue(
       SyncQueueItem(
@@ -374,6 +447,9 @@ class ConsultationRepository {
     );
     final payload = updated.toJson();
     await box.put(id, payload);
+    if (rawId.isNotEmpty && rawId != id) {
+      await box.delete(rawId);
+    }
 
     // Clean up any removed attachments from disk if updating an existing consultation
     if (existingRaw is Map) {
@@ -400,41 +476,54 @@ class ConsultationRepository {
       } catch (_) {}
     }
 
-    final isNumericServerId =
-        IdUtils.toServerIntId(IdUtils.unprefix(id)) != null;
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId();
+      final profileUuid = ownerUserId != null
+          ? _resolveProfileUuid(profileId, ownerUserId)
+          : null;
 
-    if (connectivityService != null &&
-        remoteDataSource != null &&
-        !SyncService.isRemotePushSuspended) {
-      final isOnline = await connectivityService!.checkConnectivity();
-      if (isOnline) {
-        final serverProfileId = IdUtils.resolveServerProfileId(
-          profileBox: hiveService.profileBox,
-          profileId: profileId,
-        );
-        if (serverProfileId != null) {
+      final cleanId = IdUtils.unprefix(rawId);
+      final isExistingUuid = UuidUtils.isValidUuid(cleanId);
+
+      if (ownerUserId != null && profileUuid != null) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (isOnline) {
           try {
-            Map<String, dynamic> remoteResponse;
-            if (isNumericServerId) {
-              final cleanId = IdUtils.unprefix(updated.id);
-              remoteResponse = await remoteDataSource!.updateConsultation(
-                cleanId,
-                updated.toApiJson(serverProfileId: serverProfileId),
+            ConsultationModel remoteResult;
+            if (isExistingUuid) {
+              remoteResult = await supabaseRemoteDataSource!.updateConsultation(
+                consultation: updated,
+                ownerUserId: ownerUserId,
+                profileId: profileUuid,
               );
+              final normKey = _normalizeId(remoteResult.id);
+              final synced = remoteResult.copyWith(id: normKey);
+              await box.put(normKey, synced.toJson());
+              return synced;
             } else {
-              remoteResponse = await remoteDataSource!.addConsultation(
-                updated.toApiJson(serverProfileId: serverProfileId),
-                attachments: updated.attachments,
+              remoteResult = await supabaseRemoteDataSource!.createConsultation(
+                consultation: updated,
+                ownerUserId: ownerUserId,
+                profileId: profileUuid,
               );
+              final normKey = _normalizeId(remoteResult.id);
+              if (rawId.isNotEmpty && rawId != normKey) {
+                await box.delete(rawId);
+                await box.delete(id);
+              }
+              final synced = remoteResult.copyWith(id: normKey);
+              await box.put(normKey, synced.toJson());
+              return synced;
             }
-            return await synchronizeConsultationRecord(updated, remoteResponse);
           } catch (_) {
             // On transient/network/server error, queue for offline sync
             await syncService?.addToQueue(
               SyncQueueItem(
                 id: 'sync_consultation_${DateTime.now().microsecondsSinceEpoch}',
                 entity: 'consultations',
-                operation: isNumericServerId ? 'update' : 'create',
+                operation: isExistingUuid ? 'update' : 'create',
                 payload: payload,
               ),
             );
@@ -442,9 +531,23 @@ class ConsultationRepository {
           }
         }
       }
+
+      // Queue for offline sync when disconnected or profile server ID not yet resolved
+      await syncService?.addToQueue(
+        SyncQueueItem(
+          id: 'sync_consultation_${DateTime.now().microsecondsSinceEpoch}',
+          entity: 'consultations',
+          operation: isExistingUuid ? 'update' : 'create',
+          payload: payload,
+        ),
+      );
+
+      return updated;
     }
 
-    // Queue for offline sync when disconnected or profile server ID not yet resolved
+    final isNumericServerId =
+        IdUtils.toServerIntId(IdUtils.unprefix(id)) != null;
+
     await syncService?.addToQueue(
       SyncQueueItem(
         id: 'sync_consultation_${DateTime.now().microsecondsSinceEpoch}',
@@ -598,7 +701,11 @@ class ConsultationRepository {
   ) async {
     final key = _normalizeId(consultationId);
     final box = hiveService.userBox;
-    final val = box.get(key) ?? box.get(consultationId);
+    final cleanId = IdUtils.unprefix(consultationId);
+    final val = box.get(key) ??
+        box.get(consultationId) ??
+        box.get(cleanId) ??
+        box.get('con_$cleanId');
     if (val == null) return;
 
     final existing = await getConsultationById(profileId, consultationId);
@@ -620,6 +727,10 @@ class ConsultationRepository {
     // 1. Delete from local Hive first
     await box.delete(key);
     await box.delete(consultationId);
+    if (cleanId.isNotEmpty) {
+      await box.delete(cleanId);
+      await box.delete('con_$cleanId');
+    }
 
     // 2. If local-only consultation is deleted, remove any pending create/update queue items
     if (!isNumericServerId) {
@@ -663,23 +774,51 @@ class ConsultationRepository {
       }
     }
 
-    bool deletedRemotely = false;
-    if (connectivityService != null &&
-        remoteDataSource != null &&
-        !SyncService.isRemotePushSuspended &&
-        isNumericServerId) {
-      final isOnline = await connectivityService!.checkConnectivity();
-      if (isOnline) {
-        try {
-          await remoteDataSource!.deleteConsultation(serverId.toString());
-          deletedRemotely = true;
-        } catch (_) {
-          deletedRemotely = false;
+    if (supabaseRemoteDataSource != null) {
+      final ownerUserId = _resolveCurrentUserId();
+      final profileUuid = ownerUserId != null
+          ? _resolveProfileUuid(profileId, ownerUserId)
+          : null;
+      final isUuid = UuidUtils.isValidUuid(cleanId);
+
+      bool deletedRemotely = false;
+      if (ownerUserId != null && profileUuid != null && isUuid) {
+        final isOnline = connectivityService != null
+            ? await connectivityService!.checkConnectivity()
+            : true;
+        if (isOnline) {
+          try {
+            await supabaseRemoteDataSource!.deleteConsultation(
+              consultationId: cleanId,
+              ownerUserId: ownerUserId,
+              profileId: profileUuid,
+            );
+            deletedRemotely = true;
+          } catch (_) {
+            deletedRemotely = false;
+          }
         }
       }
+
+      if (!deletedRemotely && isUuid) {
+        await syncService?.addToQueue(
+          SyncQueueItem(
+            id: 'sync_delete_consultation_${DateTime.now().microsecondsSinceEpoch}',
+            entity: 'consultations',
+            operation: 'delete',
+            payload: {
+              'id': cleanId,
+              'profile_id': profileId,
+              if (existing?.clientUuid != null)
+                'client_uuid': existing!.clientUuid,
+            },
+          ),
+        );
+      }
+      return;
     }
 
-    if (!deletedRemotely && isNumericServerId) {
+    if (isNumericServerId) {
       await syncService?.addToQueue(
         SyncQueueItem(
           id: 'sync_delete_consultation_${DateTime.now().microsecondsSinceEpoch}',
@@ -701,20 +840,14 @@ class ConsultationRepository {
     String consultationId,
     String fileId,
   ) async {
-    if (remoteDataSource == null) {
+    if (storageService == null) {
       throw const FormatException(
-        'Remote data source not available for download.',
+        'Storage service not available for download.',
       );
     }
-    final cleanConsultationId =
-        IdUtils.toServerIntId(consultationId)?.toString() ??
-        consultationId.replaceFirst('consultation_', '');
-    final cleanFileId =
-        IdUtils.toServerIntId(fileId)?.toString() ??
-        fileId.replaceFirst('att_', '');
-    return await remoteDataSource!.downloadConsultationAttachment(
-      cleanConsultationId,
-      cleanFileId,
+    return await storageService!.downloadBytes(
+      bucket: SupabaseStorageService.consultationsBucket,
+      storagePath: fileId,
     );
   }
 
@@ -735,87 +868,78 @@ class ConsultationRepository {
       }
     }
 
-    // 2. Check if remote download is possible
-    if (remoteDataSource == null) {
-      return null;
-    }
-
-    final cleanConsultationId =
-        IdUtils.toServerIntId(consultationId) ??
-        int.tryParse(IdUtils.unprefix(consultationId));
-    final cleanFileId =
-        IdUtils.toServerIntId(attachment.id) ??
-        int.tryParse(IdUtils.unprefix(attachment.id));
-
-    if (cleanConsultationId == null || cleanFileId == null) {
-      return null;
-    }
-
-    // 3. Download binary bytes from C6
-    try {
-      final bytes = await remoteDataSource!.downloadConsultationAttachment(
-        cleanConsultationId.toString(),
-        cleanFileId.toString(),
-      );
-
-      // 4. Save to persistent profile storage
-      Directory appDir;
-      if (customBaseDirectory != null) {
-        appDir = customBaseDirectory;
-      } else {
-        try {
-          appDir = await getApplicationDocumentsDirectory();
-        } catch (_) {
-          appDir = Directory.systemTemp;
-        }
-      }
-      final targetDir = Directory(
-        '${appDir.path}/profiles/$profileId/consultations/attachments',
-      );
-      if (!await targetDir.exists()) {
-        await targetDir.create(recursive: true);
-      }
-
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      String ext = 'bin';
-      if (attachment.name.contains('.')) {
-        ext = attachment.name.split('.').last.toLowerCase();
-      } else if (attachment.fileType != null &&
-          attachment.fileType!.contains('/')) {
-        ext = attachment.fileType!.split('/').last.toLowerCase();
-      }
-      final destPath =
-          '${targetDir.path}/consultation_${cleanConsultationId}_att_${cleanFileId}_$timestamp.$ext';
-      final file = File(destPath);
-      await file.writeAsBytes(bytes, flush: true);
-
-      // 5. Update local Hive consultation model with the persistent filePath
-      final box = hiveService.userBox;
-      final key = _normalizeId(consultationId);
-      final raw = box.get(key) ?? box.get(consultationId);
-      if (raw is Map) {
-        final existing = ConsultationModel.fromJson(
-          Map<String, dynamic>.from(raw),
+    // 2. Check if remote download via Supabase Storage is possible
+    if (storageService != null &&
+        attachment.fileUrl != null &&
+        attachment.fileUrl!.trim().isNotEmpty) {
+      try {
+        final bytes = await storageService!.downloadBytes(
+          bucket: SupabaseStorageService.consultationsBucket,
+          storagePath: attachment.fileUrl!.trim(),
         );
-        final updatedAttachments = existing.attachments.map((a) {
-          if (a.id == attachment.id || a.name == attachment.name) {
-            return a.copyWith(filePath: destPath);
+        if (bytes.isNotEmpty) {
+          Directory appDir;
+          if (customBaseDirectory != null) {
+            appDir = customBaseDirectory;
+          } else {
+            try {
+              appDir = await getApplicationDocumentsDirectory();
+            } catch (_) {
+              appDir = Directory.systemTemp;
+            }
           }
-          return a;
-        }).toList();
+          final targetDir = Directory(
+            '${appDir.path}/profiles/$profileId/consultations/attachments',
+          );
+          if (!await targetDir.exists()) {
+            await targetDir.create(recursive: true);
+          }
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          String ext = 'bin';
+          if (attachment.name.contains('.')) {
+            ext = attachment.name.split('.').last.toLowerCase();
+          } else if (attachment.fileType != null &&
+              attachment.fileType!.contains('/')) {
+            ext = attachment.fileType!.split('/').last.toLowerCase();
+          }
+          final cleanConsultationId = IdUtils.unprefix(consultationId);
+          final cleanFileId = IdUtils.unprefix(attachment.id);
+          final destPath =
+              '${targetDir.path}/consultation_${cleanConsultationId}_att_${cleanFileId}_$timestamp.$ext';
+          final file = File(destPath);
+          await file.writeAsBytes(bytes, flush: true);
 
-        final updatedConsultation = existing.copyWith(
-          attachments: updatedAttachments,
-        );
-        await box.put(key, updatedConsultation.toJson());
-      }
-
-      return file;
-    } on AppException {
-      rethrow;
-    } catch (_) {
-      return null;
+          // Update local Hive record with new filePath
+          final normId = _normalizeId(consultationId);
+          final box = hiveService.userBox;
+          final existing = box.get(normId);
+          if (existing is Map) {
+            final model = ConsultationModel.fromJson(
+              Map<String, dynamic>.from(existing),
+            );
+            final updatedAttachments = model.attachments.map((a) {
+              if (a.id == attachment.id) {
+                return ConsultationAttachment(
+                  id: a.id,
+                  name: a.name,
+                  sizeKB: a.sizeKB,
+                  filePath: file.path,
+                  fileType: a.fileType,
+                  fileUrl: a.fileUrl,
+                );
+              }
+              return a;
+            }).toList();
+            final updatedModel =
+                model.copyWith(attachments: updatedAttachments);
+            await box.put(normId, updatedModel.toJson());
+          }
+          return file;
+        }
+      } catch (_) {}
     }
+
+    return null;
   }
 
   /// Derived lookup: returns the ConsultationModel linked to [appointmentId] for [profileId].

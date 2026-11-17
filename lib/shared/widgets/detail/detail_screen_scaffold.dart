@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// DetailScreenScaffold provides the unified, responsive scrollable container for all MediCrate detail screens.
 class DetailScreenScaffold extends StatelessWidget {

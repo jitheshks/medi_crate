@@ -1,24 +1,24 @@
 import 'package:flutter/foundation.dart';
 
-import '../api/api_client.dart';
 import '../connectivity/connectivity_service.dart';
 import '../storage/hive_service.dart';
 import '../storage/secure_storage_service.dart';
-import 'background_sync_service.dart';
+import '../supabase/supabase_config.dart';
+import 'sync_service.dart';
 
-import '../../features/appointments/data/datasources/remote/appointment_remote_data_source.dart';
+import '../../features/appointments/data/datasources/remote/supabase_appointment_remote_data_source.dart';
 import '../../features/appointments/data/repositories/appointment_repository.dart';
-import '../../features/consultations/data/datasources/remote/consultation_remote_data_source.dart';
+import '../../features/consultations/data/datasources/remote/supabase_consultation_remote_data_source.dart';
 import '../../features/consultations/data/repositories/consultation_repository.dart';
-import '../../features/doctors/data/datasources/remote/doctor_remote_data_source.dart';
+import '../../features/doctors/data/datasources/remote/supabase_doctor_remote_data_source.dart';
 import '../../features/doctors/data/repositories/doctor_repository.dart';
-import '../../features/hospitals/data/datasources/remote/hospital_remote_data_source.dart';
+import '../../features/hospitals/data/datasources/remote/supabase_hospital_remote_data_source.dart';
 import '../../features/hospitals/data/repositories/hospital_repository.dart';
-import '../../features/medicines/data/datasources/remote/medicine_remote_data_source.dart';
+import '../../features/medicines/data/datasources/remote/supabase_medicine_remote_data_source.dart';
 import '../../features/medicines/data/repositories/medicine_repository.dart';
-import '../../features/reports/data/datasources/remote/report_remote_data_source.dart';
+import '../../features/reports/data/datasources/remote/supabase_report_remote_data_source.dart';
 import '../../features/reports/data/repositories/report_repository.dart';
-import '../../features/vitals/data/datasources/remote/vitals_remote_data_source.dart';
+import '../../features/vitals/data/datasources/remote/supabase_vitals_remote_data_source.dart';
 import '../../features/vitals/data/repositories/measurement_repository.dart';
 
 /// Pulls the seven clinical domains (Doctors, Hospitals, Consultations,
@@ -35,8 +35,8 @@ import '../../features/vitals/data/repositories/measurement_repository.dart';
 ///     foreground, when the app next resumes (see `runForegroundResumeSync`),
 ///   * writes only into the shared Hive boxes via the unchanged repo merge
 ///     logic, so [PendingMutationGuard] still protects queued mutations,
-///   * swallows per-domain / per-profile errors so one failing endpoint (e.g.
-///     the known-blocked R6 attachment stream) never aborts the rest.
+///   * swallows per-domain / per-profile errors so one failing endpoint never
+///     aborts the rest.
 ///
 /// Profile isolation: each `pullX` call is scoped to one canonical `profileId`
 /// and the server request is filtered by that profile's resolved server id, so
@@ -52,16 +52,15 @@ class BackgroundClinicalPull {
   /// leaves it null.
   Future<void> run({
     required HiveService hiveService,
-    required ApiClient apiClient,
     required ConnectivityService connectivityService,
     SecureStorageService? secureStorage,
     @visibleForTesting
     Iterable<Future<void>> Function(String profileId)? pullersFor,
   }) async {
-    // Option D isolation: Skip remote pull when legacy Laravel sync is suspended
-    if (BackgroundSyncService.isLaravelSyncSuspended) {
+    // Skip remote pull when remote synchronization is disabled
+    if (!SyncService.isRemoteSyncEnabled) {
       debugPrint(
-        '[BackgroundClinicalPull] Skipping remote pull: legacy Laravel sync suspended for Supabase migration.',
+        '[BackgroundClinicalPull] Skipping remote pull: remote synchronization is disabled.',
       );
       return;
     }
@@ -78,9 +77,7 @@ class BackgroundClinicalPull {
           .getAuthToken();
       if (token == null || token.isEmpty) return;
     } catch (_) {
-      // If secure storage is unreadable in this isolate, fall through: the
-      // AuthInterceptor will simply not attach a bearer and the pulls will
-      // 401 -> repos fall back to the local cache (no data loss).
+      // If secure storage is unreadable in this isolate, fall through.
     }
 
     final profileIds = _knownProfileIds(hiveService);
@@ -95,40 +92,49 @@ class BackgroundClinicalPull {
       return;
     }
 
+    final client = SupabaseConfig.isInitialized ? SupabaseConfig.client : null;
+
     final doctors = DoctorRepository(
       hiveService: hiveService,
       connectivityService: connectivityService,
-      remoteDataSource: DoctorRemoteDataSource(apiClient: apiClient),
+      supabaseRemoteDataSource:
+          SupabaseDoctorRemoteDataSource(customClient: client),
     );
     final hospitals = HospitalRepository(
       hiveService: hiveService,
       connectivityService: connectivityService,
-      remoteDataSource: HospitalRemoteDataSource(apiClient: apiClient),
+      supabaseRemoteDataSource:
+          SupabaseHospitalRemoteDataSource(customClient: client),
     );
     final consultations = ConsultationRepository(
       hiveService: hiveService,
       connectivityService: connectivityService,
-      remoteDataSource: ConsultationRemoteDataSource(apiClient: apiClient),
+      supabaseRemoteDataSource:
+          SupabaseConsultationRemoteDataSource(client: client),
     );
     final appointments = AppointmentRepository(
       hiveService: hiveService,
       connectivityService: connectivityService,
-      remoteDataSource: AppointmentRemoteDataSource(apiClient: apiClient),
+      supabaseRemoteDataSource:
+          SupabaseAppointmentRemoteDataSource(client: client),
     );
     final reports = ReportRepository(
       hiveService: hiveService,
       connectivityService: connectivityService,
-      remoteDataSource: ReportRemoteDataSource(apiClient: apiClient),
+      supabaseRemoteDataSource:
+          SupabaseReportRemoteDataSource(client: client),
     );
     final medicines = MedicineRepository(
       hiveService: hiveService,
       connectivityService: connectivityService,
-      remoteDataSource: MedicineRemoteDataSource(apiClient: apiClient),
+      supabaseRemoteDataSource:
+          SupabaseMedicineRemoteDataSource(client: client),
     );
     final vitals = MeasurementRepository(
       hiveService: hiveService,
       connectivityService: connectivityService,
-      remoteDataSource: VitalsRemoteDataSource(apiClient: apiClient),
+      supabaseRemoteDataSource:
+          SupabaseVitalsRemoteDataSource(client: client),
     );
 
     for (final profileId in profileIds) {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// AppSpacing defines standard padding, margins, and gaps.
 abstract class AppSpacing {

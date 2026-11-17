@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// AppTypography defines typography tokens mapping to Theme_Design_System.md.
 /// Color is intentionally omitted so typography tokens remain color-agnostic
